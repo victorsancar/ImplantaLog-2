@@ -1,0 +1,7 @@
+{
+  "name": "NetBonus - Controle de Implantação",
+  "description": "Aplicativo para Auxiliares de Redes controlarem ordens de serviço, produção diária e cálculo automático de premiação mensal.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
