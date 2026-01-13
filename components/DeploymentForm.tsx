@@ -39,7 +39,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
     setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
 
-  // COMPRESSÃO AGRESSIVA (Para garantir que salva no APK)
+  // --- COMPRESSÃO DE IMAGEM OTIMIZADA PARA PWA ---
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -49,8 +49,8 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          // Reduzi para 600px para ficar bem leve e garantir o salvamento
-          const MAX_WIDTH = 600; 
+          // 800px é perfeito: dá zoom bom e fica leve (kb)
+          const MAX_WIDTH = 800; 
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
           canvas.height = img.height * scaleSize;
@@ -58,8 +58,8 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          // Qualidade 0.6 (60%)
-          resolve(canvas.toDataURL('image/jpeg', 0.6)); 
+          // Qualidade 0.7 (70%) - Ótimo para 4G
+          resolve(canvas.toDataURL('image/jpeg', 0.7)); 
         };
       };
     });
@@ -73,7 +73,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
         const compressedBase64 = await compressImage(file);
         setFormData(prev => ({ ...prev, photoUrl: compressedBase64 }));
       } catch (error) {
-        alert("Erro ao processar foto. Tente novamente.");
+        alert("Erro ao processar foto.");
       } finally {
         setIsCompressing(false);
       }
@@ -83,12 +83,9 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     try {
-        // Tenta salvar
         onSave(formData);
     } catch (error) {
-        // Se der erro de cota (localStorage cheio), avisa o usuário
-        console.error(error);
-        alert("ERRO: Memória do App cheia! A foto não pôde ser salva.\n\nTente excluir registros antigos do Histórico e tente novamente.");
+        alert("Memória cheia! Tente excluir itens antigos do histórico.");
     }
   };
 
@@ -142,7 +139,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
             {isCompressing ? (
                 <div className="flex flex-col items-center text-yellow-400">
                     <Loader2 className="animate-spin mb-2" />
-                    <span>Comprimindo...</span>
+                    <span>Processando...</span>
                 </div>
             ) : formData.photoUrl ? (
               <img src={formData.photoUrl} alt="Preview" className="h-40 object-contain rounded-lg" />
