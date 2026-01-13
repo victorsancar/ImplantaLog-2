@@ -1,155 +1,140 @@
 import React from 'react';
+import { Trash2, Share2, Image as ImageIcon } from 'lucide-react';
 import { Deployment } from '../types';
-import { SignalIcon, AlertIcon, TrashIcon, ShareIcon, CameraIcon } from './ui/Icons';
-import { dataURLtoFile } from '../utils/calculations';
 
 interface DeploymentListProps {
   deployments: Deployment[];
   onDelete: (id: string) => void;
 }
 
+// 1. Função Auxiliar: Converte a foto (Base64) em Arquivo real para o WhatsApp aceitar
+const dataURLtoFile = async (dataUrl: string, filename: string) => {
+    try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        return new File([blob], filename, { type: 'image/jpeg' });
+    } catch (error) {
+        console.error("Erro ao converter imagem:", error);
+        return null;
+    }
+};
+
 const DeploymentList: React.FC<DeploymentListProps> = ({ deployments, onDelete }) => {
   
-  const sortedDeployments = [...deployments].sort((a, b) => {
-    return new Date(b.executionDate).getTime() - new Date(a.executionDate).getTime();
-  });
-
-  const handleShare = async (item: Deployment) => {
-    // 1. Format String exactly as requested
+  const handleShare = async (deployment: Deployment) => {
+    // 2. Monta o texto formatado do relatório
     const text = `
-TIPO: ${item.type}
-ID: ${item.serviceId}
-Endereço: ${item.address}
-Responsável: ${item.responsible || 'N/D'}
-HORÁRIO: ${item.executionTime}
-DATA: ${item.executionDate.split('-').reverse().join('/')}
-----------------
-PRODUÇÃO:
-QUANT Torres: ${item.towerCount}
-QUANT andar: ${item.floorCount}
-Apartamentos: ${item.apartmentCount}
-QUANT CDOE: ${item.cdoeCount}
-SINAL: ${item.signalStrength}
-POSSUI HUB BOX: ${item.hasHubBox ? 'SIM' : 'NÃO'}
-POSSUI SINAL: ${item.hasSignal ? 'SIM' : 'NÃO'}
-----------------
-COMENTÁRIO: ${item.comments || 'Sem obs'}
-STATUS: ${item.statusFinal}
-FACILIDADES: ${item.facilities || 'N/A'}
-EXECUTANTES: ${item.teamMember1 || ''} / ${item.teamMember2 || ''}
-`.trim();
+*RELATÓRIO DE IMPLANTAÇÃO - NETBONUS*
+-------------------------
+*TIPO:* ${deployment.type || 'IMPLANTAÇÃO'}
+*ID:* ${deployment.serviceId}
+*ENDEREÇO:* ${deployment.address}
+*DATA:* ${new Date(deployment.date).toLocaleDateString('pt-BR')} às ${deployment.time}
+*RESPONSÁVEL:* ${deployment.responsible}
+-------------------------
+*PRODUÇÃO:*
+✅ TORRES: ${deployment.towers}
+🏢 ANDARES: ${deployment.floors} | APTOS: ${deployment.apartments}
+🔌 CDOE: ${deployment.cdoe}
+📡 SINAL: ${deployment.signal}
+📶 POSSUI SINAL: ${deployment.hasSignal ? 'SIM' : 'NÃO'}
+📦 HUB BOX: ${deployment.hasHubBox ? 'SIM' : 'NÃO'}
+-------------------------
+*STATUS:* ${deployment.status}
+*OBS:* ${deployment.notes || 'Nenhuma'}
+*FACILIDADES:* ${deployment.facilities || 'Nenhuma'}
+*EXECUTANTES:* ${deployment.team || 'Não informado'}
+    `.trim();
 
-    // 2. Prepare Data
-    const shareData: ShareData = {
-        title: `Relatório OS ${item.serviceId}`,
-        text: text
-    };
-
-    // 3. Handle File Conversion for Sharing
-    try {
-        if (item.photoUrl && navigator.canShare) {
-            // Convert Base64 back to Blob/File
-            const file = dataURLtoFile(item.photoUrl, `OS_${item.serviceId}.jpg`);
-            
-            // Check if browser supports file sharing
-            if (navigator.canShare({ files: [file] })) {
-                shareData.files = [file];
-            }
-        }
-        
-        await navigator.share(shareData);
-        
-    } catch (err) {
-        console.warn("Share API error or cancelled:", err);
-        // Fallback: Copy to clipboard if sharing fails (optional UX improvement)
+    // 3. Tenta Compartilhamento Nativo (Celular)
+    if (navigator.share) {
         try {
-            await navigator.clipboard.writeText(text);
-            alert("Texto copiado para a área de transferência (Envio de imagem falhou ou não suportado).");
-        } catch (clipboardErr) {
-            alert("Não foi possível compartilhar.");
+            const shareData: any = {
+                title: 'Relatório de Implantação',
+                text: text
+            };
+
+            // Se tiver foto, converte e anexa
+            if (deployment.photo) {
+                const file = await dataURLtoFile(deployment.photo, 'servico.jpg');
+                // Verifica se o navegador suporta envio de arquivos
+                if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    shareData.files = [file];
+                }
+            }
+
+            await navigator.share(shareData);
+        } catch (error) {
+            console.log('Compartilhamento nativo falhou ou cancelado, tentando WhatsApp Web...');
+            // Fallback 1: Tenta abrir o WhatsApp Web só com texto
+             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+             window.open(whatsappUrl, '_blank');
         }
+    } else {
+        // 4. Fallback 2: PC / Desktop (Abre WhatsApp Web direto)
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(whatsappUrl, '_blank');
     }
   };
 
-  if (sortedDeployments.length === 0) {
-      return (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-              <p>Nenhum registro encontrado.</p>
-          </div>
-      )
+  if (deployments.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-slate-500 text-center px-4">
+        <p>Nenhuma implantação registrada.</p>
+        <p className="text-xs mt-2">Clique no botão "+" para começar.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4 pb-20">
-      {sortedDeployments.map(item => (
-        <div key={item.id} className="bg-dark-800 rounded-xl p-4 shadow-sm border border-dark-700 relative group">
-          <div className="flex justify-between items-start">
-            <div>
-               <div className="flex items-center gap-2 mb-1">
-                   <span className="text-xs font-bold text-brand-400 bg-brand-900/50 px-2 py-0.5 rounded border border-brand-800">
-                       {new Date(item.executionDate).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
-                   </span>
-                   <span className="text-xs text-slate-400">ID: {item.serviceId}</span>
-               </div>
-               <h3 className="font-semibold text-slate-200 line-clamp-1">{item.address}</h3>
-               <p className="text-xs text-slate-500 line-clamp-1">{item.responsible}</p>
-            </div>
-            
-            <div className="flex flex-col items-end">
-                <div className="flex items-center gap-1">
-                    <span className="font-bold text-lg text-white">{item.towerCount}</span>
-                    <span className="text-xs text-slate-400">Torres</span>
+    <div className="space-y-4 pb-24"> {/* Padding bottom extra para não esconder atrás do menu */}
+      {deployments.map((item) => (
+        <div key={item.id} className="bg-dark-800 rounded-xl p-4 shadow-lg border border-dark-700 relative overflow-hidden">
+          {/* Indicador lateral de status (Verde/Vermelho) */}
+          <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.hasSignal ? 'bg-green-500' : 'bg-red-500'}`}></div>
+
+          <div className="pl-2">
+            <div className="flex justify-between items-start mb-3">
+                <div>
+                <h3 className="font-bold text-white text-lg">OS: {item.serviceId}</h3>
+                <p className="text-xs text-slate-400 font-mono">{new Date(item.date).toLocaleDateString('pt-BR')} • {item.time}</p>
                 </div>
-                {item.hasSignal ? (
-                    <div className="flex items-center text-green-400 text-xs gap-1">
-                        <SignalIcon className="w-3 h-3" />
-                        <span>Com Sinal</span>
-                    </div>
-                ) : (
-                    <div className="flex items-center text-red-400 text-xs gap-1 font-medium">
-                        <AlertIcon className="w-3 h-3" />
-                        <span>Sem Sinal</span>
-                    </div>
-                )}
+                <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${item.hasSignal ? 'bg-green-900/40 text-green-400 border border-green-900' : 'bg-red-900/40 text-red-400 border border-red-900'}`}>
+                    {item.hasSignal ? 'Com Sinal' : 'Sem Sinal'}
+                </div>
             </div>
-          </div>
 
-          <div className="mt-3 pt-3 border-t border-dark-700 flex justify-between items-center">
-              <div className="flex gap-2">
-                 <span className={`text-xs px-2 py-1 rounded-full font-medium border ${
-                    item.statusFinal === 'IMPLANTADO' ? 'bg-green-900/30 text-green-400 border-green-800' :
-                    item.statusFinal === 'PENDENTE' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
-                    'bg-red-900/30 text-red-400 border-red-800'
-                }`}>
-                    {item.statusFinal}
-                </span>
-                {item.photoUrl && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-slate-700 text-slate-300 flex items-center gap-1">
-                        <CameraIcon className="w-3 h-3" /> Foto
-                    </span>
-                )}
-              </div>
+            <div className="text-sm text-slate-300 space-y-2 mb-4">
+                <p className="truncate"><span className="text-slate-500 text-xs uppercase font-bold mr-2">Endereço:</span>{item.address}</p>
+                <div className="grid grid-cols-2 gap-2">
+                    <p><span className="text-slate-500 text-xs uppercase font-bold mr-2">Torres:</span> {item.towers}</p>
+                    <p><span className="text-slate-500 text-xs uppercase font-bold mr-2">Sinal:</span> {item.signal}</p>
+                </div>
+                <p><span className="text-slate-500 text-xs uppercase font-bold mr-2">Status:</span> {item.status}</p>
+            </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                    onClick={() => handleShare(item)}
-                    className="flex items-center gap-1 px-3 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg transition-colors shadow-sm"
-                >
-                    <ShareIcon className="w-4 h-4" />
-                    <span className="text-xs font-bold">Compartilhar</span>
-                </button>
+            {/* Preview da Foto */}
+            {item.photo && (
+                <div className="mb-4 rounded-lg overflow-hidden h-32 w-full bg-dark-900 border border-dark-700">
+                    <img src={item.photo} alt="Evidência" className="w-full h-full object-cover" />
+                </div>
+            )}
 
-                <div className="w-px h-4 bg-dark-600 mx-1"></div>
-
+            <div className="flex gap-3 mt-2">
                 <button 
-                    onClick={() => {
-                        if(window.confirm('Tem certeza que deseja excluir?')) onDelete(item.id);
-                    }}
-                    className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                    onClick={() => handleShare(item)}
+                    className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20"
                 >
-                    <TrashIcon className="w-4 h-4" />
+                    <Share2 size={18} /> <span>WhatsApp</span>
                 </button>
-              </div>
+                <button 
+                    onClick={() => onDelete(item.id)}
+                    className="w-12 bg-dark-700 hover:bg-red-900/20 text-red-400 border border-dark-600 rounded-lg flex items-center justify-center transition-all"
+                    aria-label="Excluir"
+                >
+                    <Trash2 size={18} />
+                </button>
+            </div>
           </div>
         </div>
       ))}
