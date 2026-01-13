@@ -7,48 +7,47 @@ interface DeploymentListProps {
   onDelete: (id: string) => void;
 }
 
-// Converter DataURL para Arquivo
-const dataURLtoFile = async (dataUrl: string, filename: string) => {
-    try {
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        return new File([blob], filename, { type: 'image/jpeg' });
-    } catch (error) {
-        console.error("Erro conversão:", error);
-        return null;
-    }
-};
-
 const DeploymentList: React.FC<DeploymentListProps> = ({ deployments, onDelete }) => {
   
   const handleShare = async (deployment: Deployment) => {
-    // Monta texto
-    const text = `*RELATÓRIO NETBONUS*\nOS: ${deployment.serviceId}\nEND: ${deployment.address}\nTORRES: ${deployment.towerCount}\nSINAL: ${deployment.signalStrength}\nSTATUS: ${deployment.status || 'OK'}`;
+    // 1. Monta o texto
+    const text = `
+*RELATÓRIO NETBONUS*
+-------------------------
+*OS:* ${deployment.serviceId}
+*END:* ${deployment.address}
+*DATA:* ${new Date(deployment.executionDate).toLocaleDateString('pt-BR')}
+-------------------------
+✅ TORRES: ${deployment.towerCount}
+📡 SINAL: ${deployment.signalStrength}
+📶 POSSUI SINAL: ${deployment.hasSignal ? 'SIM' : 'NÃO'}
+-------------------------
+*STATUS:* ${deployment.status}
+    `.trim();
 
-    // Tenta compartilhar
+    // 2. Tenta a API Nativa (Se o WebIntoApp suportar, vai com foto)
     if (navigator.share) {
         try {
             const shareData: any = { title: 'Relatório', text: text };
-            
-            // Verifica se tem foto E se ela é válida
-            if (deployment.photoUrl && deployment.photoUrl.startsWith('data:image')) {
-                const file = await dataURLtoFile(deployment.photoUrl, 'servico.jpg');
-                if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+            // Tenta converter e anexar a foto (se houver)
+            if (deployment.photoUrl) {
+                const blob = await (await fetch(deployment.photoUrl)).blob();
+                const file = new File([blob], "servico.jpg", { type: "image/jpeg" });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     shareData.files = [file];
                 }
             }
-
             await navigator.share(shareData);
-        } catch (error) {
-            // Se cair aqui, é porque o navegador do celular cancelou ou deu erro
-            // Vamos forçar abrir o WhatsApp Web como plano B
-            // alert("Compartilhamento nativo falhou. Abrindo WhatsApp Web (apenas texto).");
-            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+            return; 
+        } catch (e) {
+            console.log("Share nativo falhou, indo para plano B...");
         }
-    } else {
-        // Se estiver no PC
-        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
     }
+
+    // 3. PLANO B (ESPECÍFICO PARA APK/WEBINTOAPP)
+    // Usamos 'whatsapp://' em vez de 'https://'. Isso força o Android a abrir o app.
+    // Nota: Por esse método, infelizmente só vai o TEXTO. A foto não passa por link.
+    window.location.href = `whatsapp://send?text=${encodeURIComponent(text)}`;
   };
 
   if (deployments.length === 0) return <div className="p-8 text-center text-slate-500">Sem registros.</div>;
@@ -64,17 +63,19 @@ const DeploymentList: React.FC<DeploymentListProps> = ({ deployments, onDelete }
                 <span className="text-xs text-slate-400">{item.executionTime}</span>
             </div>
             
-            <p className="text-sm text-slate-300 mb-2">{item.address}</p>
+            <p className="text-sm text-slate-300 mb-2 truncate">{item.address}</p>
             <div className="flex gap-4 text-sm mb-3">
                 <span>📶 {item.signalStrength}</span>
                 <span>🏢 {item.towerCount} Torres</span>
             </div>
 
-            {/* PREVIEW DA FOTO */}
+            {/* FOTO - Se estiver branca/vazia, é permissão da câmera */}
             {item.photoUrl ? (
                 <img src={item.photoUrl} className="w-full h-40 object-cover rounded-lg mb-3 bg-black" alt="Evidência" />
             ) : (
-                <div className="p-2 bg-slate-900 text-xs text-slate-500 text-center mb-3 rounded">Sem foto salva</div>
+                <div className="p-2 bg-slate-900 text-xs text-slate-500 text-center mb-3 border border-slate-700 border-dashed rounded">
+                    Sem foto registrada
+                </div>
             )}
 
             <div className="flex gap-2">
