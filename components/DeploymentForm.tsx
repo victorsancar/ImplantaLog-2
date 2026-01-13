@@ -39,7 +39,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
     setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
 
-  // --- FUNÇÃO MÁGICA DE COMPRESSÃO ---
+  // COMPRESSÃO AGRESSIVA (Para garantir que salva no APK)
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -49,7 +49,8 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Reduz para no máximo 800px de largura
+          // Reduzi para 600px para ficar bem leve e garantir o salvamento
+          const MAX_WIDTH = 600; 
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
           canvas.height = img.height * scaleSize;
@@ -57,8 +58,8 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          // Converte para JPEG com qualidade 0.7 (70%)
-          resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+          // Qualidade 0.6 (60%)
+          resolve(canvas.toDataURL('image/jpeg', 0.6)); 
         };
       };
     });
@@ -82,9 +83,12 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     try {
+        // Tenta salvar
         onSave(formData);
     } catch (error) {
-        alert("Erro ao salvar! Memória cheia? Tente excluir registros antigos.");
+        // Se der erro de cota (localStorage cheio), avisa o usuário
+        console.error(error);
+        alert("ERRO: Memória do App cheia! A foto não pôde ser salva.\n\nTente excluir registros antigos do Histórico e tente novamente.");
     }
   };
 
@@ -98,7 +102,6 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 space-y-4 max-w-lg mx-auto">
-        {/* DADOS BÁSICOS */}
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
           <h3 className="text-blue-400 text-xs font-bold uppercase mb-2">Dados do Serviço</h3>
           <div>
@@ -115,7 +118,6 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           </div>
         </div>
 
-        {/* PRODUÇÃO */}
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
           <h3 className="text-green-400 text-xs font-bold uppercase mb-2">Produção</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -128,29 +130,26 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
               <input type="text" name="signalStrength" className="w-full bg-slate-900 border-slate-600 border rounded p-3 text-white text-center" value={formData.signalStrength} onChange={handleChange} />
             </div>
           </div>
-          {/* Outros campos técnicos ocultos para brevidade no exemplo, mas funcionam igual */}
           <div className="flex gap-4 pt-2">
-            <label className="flex items-center gap-2 bg-slate-900 p-3 rounded-lg flex-1 justify-center"><input type="checkbox" name="hasHubBox" checked={formData.hasHubBox} onChange={handleChange} /> <span className="text-slate-300 text-sm">Hub Box</span></label>
-            <label className="flex items-center gap-2 bg-slate-900 p-3 rounded-lg flex-1 justify-center"><input type="checkbox" name="hasSignal" checked={formData.hasSignal} onChange={handleChange} /> <span className="text-slate-300 text-sm">Tem Sinal</span></label>
+             <label className="flex items-center gap-2 bg-slate-900 p-3 rounded-lg flex-1 justify-center"><input type="checkbox" name="hasSignal" checked={formData.hasSignal} onChange={handleChange} /> <span className="text-slate-300 text-sm">Tem Sinal</span></label>
           </div>
         </div>
 
-        {/* FOTO E FINALIZAÇÃO */}
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-          <h3 className="text-purple-400 text-xs font-bold uppercase mb-2">Evidência</h3>
+          <h3 className="text-purple-400 text-xs font-bold uppercase mb-2">Evidência (Foto)</h3>
           
           <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-slate-600 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-700 mt-2">
             {isCompressing ? (
                 <div className="flex flex-col items-center text-yellow-400">
                     <Loader2 className="animate-spin mb-2" />
-                    <span>Processando Imagem...</span>
+                    <span>Comprimindo...</span>
                 </div>
             ) : formData.photoUrl ? (
               <img src={formData.photoUrl} alt="Preview" className="h-40 object-contain rounded-lg" />
             ) : (
               <>
                 <Camera size={40} className="text-slate-400 mb-2" />
-                <span className="text-slate-400 text-sm">Toque para adicionar foto</span>
+                <span className="text-slate-400 text-sm">Toque para FOTO</span>
               </>
             )}
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="environment" onChange={handlePhotoCapture} />
@@ -158,7 +157,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
         </div>
 
         <button type="submit" disabled={isCompressing} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-lg mt-6">
-          <Save size={24} /> {isCompressing ? 'AGUARDE...' : 'SALVAR REGISTRO'}
+          <Save size={24} /> {isCompressing ? 'AGUARDE...' : 'SALVAR'}
         </button>
       </form>
     </div>
