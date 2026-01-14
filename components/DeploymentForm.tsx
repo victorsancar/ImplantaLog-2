@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Save, X, Camera } from 'lucide-react';
-import { Deployment } from '../types'; // Caminho corrigido com ..
-import { STATUS_OPTIONS } from '../constants'; // Caminho corrigido com ..
+import { Deployment } from '../types'; // Importando do types.ts na raiz
+import { STATUS_OPTIONS } from '../constants'; 
 
 interface DeploymentFormProps {
   onSave: (data: any) => void;
@@ -21,7 +21,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
     floors: 0,
     apartments: 0,
     cdoe: 0,
-    // Valores padrão
+    // Valores padrão para materiais
     cableSource: 'Rolo 100m',
     cableUsed: 0,
     connectors: 0,
@@ -67,9 +67,10 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
 
       <form onSubmit={handleSubmit} className="p-4 space-y-6">
         
-        {/* Dados do Serviço */}
+        {/* Seção 1: Dados do Serviço */}
         <div className="space-y-4">
           <h3 className="text-sky-400 text-xs font-bold uppercase tracking-wider">Dados do Serviço</h3>
+          
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-1">
               <label className="block text-xs text-slate-400 mb-1">ID (OS)</label>
@@ -80,10 +81,12 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
               <input name="responsible" type="text" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
           </div>
+
           <div>
             <label className="block text-xs text-slate-400 mb-1">Endereço</label>
             <input name="address" type="text" required className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-slate-400 mb-1">Data</label>
@@ -96,9 +99,10 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           </div>
         </div>
 
-        {/* Produção */}
+        {/* Seção 2: Produção Técnica */}
         <div className="space-y-4 pt-4 border-t border-slate-700">
           <h3 className="text-sky-400 text-xs font-bold uppercase tracking-wider">Produção</h3>
+          
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-slate-400 mb-1">Qtd. Torres</label>
@@ -109,6 +113,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
               <input name="cdoe" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
              <div>
               <label className="block text-xs text-slate-400 mb-1">Andares</label>
@@ -121,7 +126,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           </div>
         </div>
 
-        {/* MATERIAIS (Campos Novos) */}
+        {/* Seção 3: Materiais (AQUI ESTÃO OS CAMPOS NOVOS) */}
         <div className="space-y-4 pt-4 border-t border-slate-700">
           <h3 className="text-sky-400 text-xs font-bold uppercase tracking-wider">Materiais Utilizados</h3>
           
@@ -154,7 +159,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           </div>
         </div>
 
-        {/* Sinais */}
+        {/* Seção 4: Sinais e Status */}
         <div className="space-y-4 pt-4 border-t border-slate-700">
           <h3 className="text-sky-400 text-xs font-bold uppercase tracking-wider">Sinal e Status</h3>
 
@@ -185,7 +190,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           </div>
         </div>
 
-        {/* Extras */}
+        {/* Seção 5: Extras */}
         <div className="space-y-4 pt-4 border-t border-slate-700">
              <div>
               <label className="block text-xs text-slate-400 mb-1">Facilidades</label>
@@ -201,7 +206,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
             </div>
         </div>
 
-        {/* Foto */}
+        {/* Seção 6: Foto */}
         <div className="pt-4 border-t border-slate-700">
             <label className="block w-full cursor-pointer bg-slate-800 hover:bg-slate-700 text-white p-4 rounded-lg border-2 border-dashed border-slate-600 text-center transition-all">
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} />
@@ -221,13 +226,13 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
             )}
         </div>
 
-        {/* Botões */}
-        <div className="pt-4 flex gap-3">
-             <button type="button" onClick={onCancel} className="flex-1 py-4 rounded-lg border border-slate-600 text-slate-300 font-medium hover:bg-slate-800">
+        {/* Botões Finais */}
+        <div className="flex gap-3 pt-6">
+            <button type="button" onClick={onCancel} className="flex-1 py-3 rounded-lg border border-slate-600 text-slate-300 font-medium hover:bg-slate-800">
                 Cancelar
             </button>
-            <button type="submit" className="flex-1 py-4 rounded-lg bg-sky-600 text-white font-bold hover:bg-sky-500 shadow-lg flex items-center justify-center gap-2 text-lg">
-                <Save size={20} /> SALVAR
+            <button type="submit" className="flex-1 py-3 rounded-lg bg-sky-600 text-white font-bold hover:bg-sky-500 shadow-lg flex items-center justify-center gap-2">
+                <Save size={18} /> Salvar
             </button>
         </div>
       </form>
