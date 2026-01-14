@@ -1,6 +1,6 @@
 import React from 'react';
 import { Trash2, Share2, MapPin, Signal, Wrench } from 'lucide-react';
-import { Deployment } from '../types'; // Caminho corrigido com ..
+import { Deployment } from '../types'; // Importando do types.ts na raiz
 
 interface DeploymentListProps {
   deployments: Deployment[];
