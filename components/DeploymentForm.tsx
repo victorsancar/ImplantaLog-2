@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Save, Camera, X } from 'lucide-react';
-import { Deployment } from './types'; // Caminho corrigido
-import { STATUS_OPTIONS } from './constants'; // Caminho corrigido
+import { Save, X, Camera } from 'lucide-react';
+import { Deployment } from '../types'; // Caminho corrigido com ..
+import { STATUS_OPTIONS } from '../constants'; // Caminho corrigido com ..
 
 interface DeploymentFormProps {
   onSave: (data: any) => void;
@@ -21,6 +21,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
     floors: 0,
     apartments: 0,
     cdoe: 0,
+    // Valores padrão
     cableSource: 'Rolo 100m',
     cableUsed: 0,
     connectors: 0,
@@ -72,25 +73,25 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-1">
               <label className="block text-xs text-slate-400 mb-1">ID (OS)</label>
-              <input name="serviceId" type="text" inputMode="numeric" required className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="serviceId" type="text" inputMode="numeric" required className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
             <div className="col-span-2">
               <label className="block text-xs text-slate-400 mb-1">Responsável</label>
-              <input name="responsible" type="text" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="responsible" type="text" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Endereço</label>
-            <input name="address" type="text" required className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+            <input name="address" type="text" required className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-slate-400 mb-1">Data</label>
-              <input name="date" type="date" value={formData.date} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="date" type="date" value={formData.date} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
             <div>
               <label className="block text-xs text-slate-400 mb-1">Hora</label>
-              <input name="time" type="time" value={formData.time} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="time" type="time" value={formData.time} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
           </div>
         </div>
@@ -101,32 +102,33 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-slate-400 mb-1">Qtd. Torres</label>
-              <input name="towers" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="towers" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
             <div>
               <label className="block text-xs text-slate-400 mb-1">Qtd. CDOE</label>
-              <input name="cdoe" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="cdoe" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
              <div>
               <label className="block text-xs text-slate-400 mb-1">Andares</label>
-              <input name="floors" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="floors" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
             <div>
               <label className="block text-xs text-slate-400 mb-1">Apartamentos</label>
-              <input name="apartments" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="apartments" type="number" inputMode="numeric" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
           </div>
         </div>
 
-        {/* Materiais (Campos Novos) */}
+        {/* MATERIAIS (Campos Novos) */}
         <div className="space-y-4 pt-4 border-t border-slate-700">
           <h3 className="text-sky-400 text-xs font-bold uppercase tracking-wider">Materiais Utilizados</h3>
+          
           <div className="grid grid-cols-1 gap-3">
             <div>
                 <label className="block text-xs text-slate-400 mb-1">Cabo 04 - Origem</label>
-                <select name="cableSource" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange}>
+                <select name="cableSource" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange}>
                     <option value="Rolo 100m">Rolo de 100m</option>
                     <option value="Rolo 200m">Rolo de 200m</option>
                     <option value="Rolo 300m">Rolo de 300m</option>
@@ -135,18 +137,19 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
                 </select>
             </div>
           </div>
+
           <div className="grid grid-cols-3 gap-3">
             <div>
                 <label className="block text-xs text-slate-400 mb-1">Metros</label>
-                <input name="cableUsed" type="number" inputMode="numeric" placeholder="0" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+                <input name="cableUsed" type="number" inputMode="numeric" placeholder="0" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
             <div>
-                <label className="block text-xs text-slate-400 mb-1">Conector</label>
-                <input name="connectors" type="number" inputMode="numeric" placeholder="0" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+                <label className="block text-xs text-slate-400 mb-1">Conectores</label>
+                <input name="connectors" type="number" inputMode="numeric" placeholder="0" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
              <div>
                 <label className="block text-xs text-slate-400 mb-1">Alças</label>
-                <input name="anchors" type="number" inputMode="numeric" placeholder="0" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+                <input name="anchors" type="number" inputMode="numeric" placeholder="0" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
           </div>
         </div>
@@ -154,10 +157,11 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
         {/* Sinais */}
         <div className="space-y-4 pt-4 border-t border-slate-700">
           <h3 className="text-sky-400 text-xs font-bold uppercase tracking-wider">Sinal e Status</h3>
+
            <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-slate-400 mb-1">Nível Sinal (dB)</label>
-              <input name="signal" type="text" placeholder="-19.00" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="signal" type="text" placeholder="-19.00" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
              <div className="flex flex-col gap-2 pt-6">
                  <label className="flex items-center gap-2 text-sm text-slate-300">
@@ -170,9 +174,10 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
                  </label>
             </div>
           </div>
+
           <div>
              <label className="block text-xs text-slate-400 mb-1">Status Final</label>
-             <select name="status" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange}>
+             <select name="status" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange}>
                 {STATUS_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.label}>{opt.label}</option>
                 ))}
@@ -184,15 +189,15 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
         <div className="space-y-4 pt-4 border-t border-slate-700">
              <div>
               <label className="block text-xs text-slate-400 mb-1">Facilidades</label>
-              <input name="facilities" type="text" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+              <input name="facilities" type="text" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500" onChange={handleChange} />
             </div>
              <div>
               <label className="block text-xs text-slate-400 mb-1">Observações</label>
-              <textarea name="notes" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white h-20" onChange={handleChange}></textarea>
+              <textarea name="notes" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500 h-20" onChange={handleChange}></textarea>
             </div>
              <div>
               <label className="block text-xs text-slate-400 mb-1">Equipe (Nomes | RE)</label>
-              <textarea name="team" placeholder="Técnico 1 | RE&#10;Técnico 2 | RE" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white h-20" onChange={handleChange}></textarea>
+              <textarea name="team" placeholder="Técnico 1 | RE&#10;Técnico 2 | RE" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white outline-none focus:border-sky-500 h-20" onChange={handleChange}></textarea>
             </div>
         </div>
 
@@ -205,6 +210,7 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
                     <span className="text-sm font-medium">Tirar Foto / Anexar</span>
                 </div>
             </label>
+            
             {photoPreview && (
                 <div className="mt-4 relative rounded-lg overflow-hidden border border-slate-600">
                     <img src={photoPreview} alt="Preview" className="w-full h-48 object-cover" />
@@ -215,10 +221,13 @@ const DeploymentForm: React.FC<DeploymentFormProps> = ({ onSave, onCancel }) => 
             )}
         </div>
 
-        {/* Botão Salvar */}
-        <div className="pt-4">
-            <button type="submit" className="w-full py-4 rounded-lg bg-sky-600 text-white font-bold hover:bg-sky-500 shadow-lg flex items-center justify-center gap-2 text-lg">
-                <Save size={20} /> SALVAR REGISTRO
+        {/* Botões */}
+        <div className="pt-4 flex gap-3">
+             <button type="button" onClick={onCancel} className="flex-1 py-4 rounded-lg border border-slate-600 text-slate-300 font-medium hover:bg-slate-800">
+                Cancelar
+            </button>
+            <button type="submit" className="flex-1 py-4 rounded-lg bg-sky-600 text-white font-bold hover:bg-sky-500 shadow-lg flex items-center justify-center gap-2 text-lg">
+                <Save size={20} /> SALVAR
             </button>
         </div>
       </form>
