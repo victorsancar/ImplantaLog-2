@@ -19,7 +19,7 @@ export interface Deployment {
   hasSignal: boolean;
   hasHubBox: boolean;
   
-  // NOVOS CAMPOS: Materiais
+  // NOVOS CAMPOS: Materiais (Adicionados agora)
   cableSource?: string; // Qual rolo/bobina usou
   cableUsed?: number;   // Quantos metros
   connectors?: number;  // Conectores
