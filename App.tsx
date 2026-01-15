@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Home, List, Plus, Save, X, Camera, MapPin, Signal, Trash2, Share2, Loader2 } from 'lucide-react';
+import { Home, List, Plus, Save, X, Camera, MapPin, Trash2, Share2, Loader2 } from 'lucide-react';
 
 // --- DEFINIÇÃO DOS DADOS ---
 interface Deployment {
   id: string;
   createdAt: number;
-  type?: string;
   serviceId: string;
   address: string;
   responsible: string;
   date: string;
   time: string;
   towers: number;
-  floors: string | number;
-  apartments: string | number;
-  cdoe: string | number;
+  cdoe: number;
   signal: string;
   hasSignal: boolean;
   hasHubBox: boolean;
@@ -23,8 +20,6 @@ interface Deployment {
   connectors?: number;
   anchors?: number;
   status: string;
-  notes?: string;
-  facilities?: string;
   team?: string;
   photo?: string;
 }
@@ -35,7 +30,7 @@ const STATUS_OPTIONS = [
   { value: 'CANCELADO', label: 'Cancelado' },
 ];
 
-// --- FUNÇÃO DE CARIMBO (TIMESTAMP) ---
+// --- FUNÇÃO CARIMBO (TIMESTAMP) ---
 const addWatermark = (file: File, info: { date: string, time: string, address: string, os: string }): Promise<string> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -46,50 +41,43 @@ const addWatermark = (file: File, info: { date: string, time: string, address: s
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Mantém a resolução original
         canvas.width = img.width;
         canvas.height = img.height;
-
-        // Desenha a foto
         ctx.drawImage(img, 0, 0);
 
-        // Configurações do Carimbo (Rodapé escuro)
-        const fontSize = Math.max(24, canvas.width / 25); // Fonte maior
+        // Fundo preto transparente no rodapé
+        const fontSize = Math.max(30, canvas.width / 25);
         const padding = fontSize;
-        const lineHeight = fontSize * 1.4;
-        
-        // Área do texto (3 linhas)
-        const textBoxHeight = (lineHeight * 3) + (padding * 2);
-        const bottomY = canvas.height - textBoxHeight;
+        const lineHeight = fontSize * 1.3;
+        const boxHeight = (lineHeight * 3) + (padding * 2);
+        const yStart = canvas.height - boxHeight;
 
-        // Fundo semitransparente
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, bottomY, canvas.width, textBoxHeight);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(0, yStart, canvas.width, boxHeight);
 
-        // Configuração do Texto
+        // Textos
         ctx.textBaseline = 'top';
+        let textY = yStart + padding;
         const textX = padding;
-        let textY = bottomY + padding;
 
-        // Linha 1: Data e Hora (Amarelo Ouro)
+        // 1. Data e Hora (Amarelo)
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.fillStyle = '#FFD700';
         ctx.fillText(`📅 ${info.date} • ${info.time}`, textX, textY);
         
-        // Linha 2: Endereço (Branco)
+        // 2. Endereço (Branco)
         textY += lineHeight;
         ctx.fillStyle = '#FFFFFF';
         ctx.font = `${fontSize}px sans-serif`;
-        // Corta o endereço se for muito longo
-        let addressText = `📍 ${info.address || 'Localização não definida'}`;
-        if (addressText.length > 50) addressText = addressText.substring(0, 50) + '...';
-        ctx.fillText(addressText, textX, textY);
+        let addr = `📍 ${info.address || 'Local não definido'}`;
+        if (addr.length > 55) addr = addr.substring(0, 55) + '...';
+        ctx.fillText(addr, textX, textY);
 
-        // Linha 3: OS e ID (Branco)
+        // 3. OS (Branco)
         textY += lineHeight;
         ctx.fillText(`🆔 OS: ${info.os || 'N/A'}`, textX, textY);
 
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
       img.src = e.target?.result as string;
     };
@@ -97,20 +85,19 @@ const addWatermark = (file: File, info: { date: string, time: string, address: s
   });
 };
 
-// --- COMPONENTE: FORMULÁRIO ---
+// --- FORMULÁRIO ---
 const DeploymentForm = ({ onSave, onCancel }: any) => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isLocating, setIsLocating] = useState(false); // Estado do GPS
+  const [isLocating, setIsLocating] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Deployment>>({
-    type: 'IMPLANTAÇÃO',
     date: new Date().toISOString().split('T')[0],
     time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     hasSignal: true, hasHubBox: false,
-    towers: 1, cdoe: 0, floors: 0, apartments: 0,
+    towers: 1, cdoe: 0,
     cableSource: 'Rolo 100m', cableUsed: 0, connectors: 0, anchors: 0,
-    address: '' // Começa vazio para obrigar o uso do GPS ou digitação
+    address: ''
   });
 
   const handleChange = (e: any) => {
@@ -118,42 +105,28 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
     setFormData(prev => ({ ...prev, [name]: type === 'number' ? Number(value) : value }));
   };
 
-  // --- FUNÇÃO NOVA: PEGAR LOCALIZAÇÃO GPS ---
   const handleGetLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Seu navegador não suporta GPS.");
-      return;
-    }
-    
+    if (!navigator.geolocation) return alert("GPS não suportado.");
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
+      async (pos) => {
         try {
-          // Usa API gratuita do OpenStreetMap para descobrir o nome da rua
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-          const data = await response.json();
-          
-          let fullAddress = `Lat: ${latitude.toFixed(5)}, Lon: ${longitude.toFixed(5)}`;
-          if (data && data.address) {
-             const road = data.address.road || '';
-             const suburb = data.address.suburb || data.address.neighbourhood || '';
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await res.json();
+          let addr = `Lat: ${latitude.toFixed(5)}, Lon: ${longitude.toFixed(5)}`;
+          if (data.address) {
+             const street = data.address.road || '';
+             const sub = data.address.suburb || data.address.neighbourhood || '';
              const city = data.address.city || data.address.town || '';
-             fullAddress = `${road}, ${suburb} - ${city}`;
+             addr = `${street}, ${sub} - ${city}`;
           }
-          
-          setFormData(prev => ({ ...prev, address: fullAddress }));
-        } catch (error) {
-          // Se der erro na API, usa as coordenadas puras
-          setFormData(prev => ({ ...prev, address: `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}` }));
-        } finally {
-          setIsLocating(false);
-        }
+          setFormData(p => ({ ...p, address: addr }));
+        } catch (e) {
+          setFormData(p => ({ ...p, address: `GPS: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}` }));
+        } finally { setIsLocating(false); }
       },
-      (error) => {
-        alert("Erro ao obter GPS. Verifique se a localização está ativada.");
-        setIsLocating(false);
-      },
+      () => { alert("Erro no GPS. Ative a localização."); setIsLocating(false); },
       { enableHighAccuracy: true }
     );
   };
@@ -161,23 +134,18 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
   const handlePhotoChange = async (e: any) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!formData.address) {
-        if(!confirm("⚠️ ATENÇÃO: Você não definiu o endereço/GPS. A foto ficará sem local. Deseja continuar?")) {
-           e.target.value = ''; // Limpa a seleção
-           return; 
-        }
+      if (!formData.address && !confirm("Sem endereço no GPS. A foto ficará sem local. Continuar?")) {
+        e.target.value = ''; return;
       }
-
       setIsProcessing(true);
-      const watermarkedImage = await addWatermark(file, {
+      const watermark = await addWatermark(file, {
         date: new Date().toLocaleDateString('pt-BR'),
-        time: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+        time: formData.time || '',
         address: formData.address || '',
         os: formData.serviceId || ''
       });
-
-      setPhotoPreview(watermarkedImage);
-      setFormData(prev => ({ ...prev, photo: watermarkedImage }));
+      setPhotoPreview(watermark);
+      setFormData(p => ({ ...p, photo: watermark }));
       setIsProcessing(false);
     }
   };
@@ -190,26 +158,14 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
       </div>
       <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="p-4 space-y-6">
         
-        {/* SERVIÇO & GPS */}
         <div className="space-y-3">
-          <h3 className="text-sky-400 text-xs font-bold uppercase">Localização & Serviço</h3>
-          <input name="serviceId" placeholder="ID da OS" inputMode="numeric" required className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white focus:border-sky-500 transition-colors" onChange={handleChange} />
+          <label className="text-sky-400 text-xs font-bold uppercase">ID e Localização</label>
+          <input name="serviceId" placeholder="Número da OS" inputMode="numeric" required className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
           
           <div className="flex gap-2">
-              <input 
-                name="address" 
-                value={formData.address} 
-                placeholder="Endereço (Use o botão GPS 👉)" 
-                className="flex-1 bg-slate-900 border border-slate-600 rounded p-3 text-white focus:border-sky-500" 
-                onChange={handleChange} 
-              />
-              <button 
-                type="button" 
-                onClick={handleGetLocation}
-                disabled={isLocating}
-                className="bg-sky-600 text-white px-4 rounded-lg flex items-center justify-center shadow-lg active:scale-95 transition-all"
-              >
-                {isLocating ? <Loader2 className="animate-spin" /> : <MapPin />}
+              <input name="address" value={formData.address} placeholder="Endereço (Clique no GPS 👉)" className="flex-1 bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
+              <button type="button" onClick={handleGetLocation} disabled={isLocating} className="bg-sky-600 text-white px-4 rounded flex items-center justify-center">
+                {isLocating ? <Loader2 className="animate-spin"/> : <MapPin />}
               </button>
           </div>
           
@@ -220,35 +176,33 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
           </div>
         </div>
 
-        {/* PRODUÇÃO */}
         <div className="space-y-3 pt-4 border-t border-slate-700">
-          <h3 className="text-sky-400 text-xs font-bold uppercase">Produção</h3>
+          <label className="text-sky-400 text-xs font-bold uppercase">Produção</label>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs text-slate-400">Torres</label><input name="towers" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
-            <div><label className="text-xs text-slate-400">CDOE</label><input name="cdoe" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
+            <div><span className="text-xs text-slate-400">Torres</span><input name="towers" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
+            <div><span className="text-xs text-slate-400">CDOE</span><input name="cdoe" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
           </div>
           
-          <div className="bg-slate-900/50 p-3 rounded mt-3 border border-slate-700">
-             <label className="text-xs text-sky-400 font-bold uppercase mb-2 block">Materiais Utilizados</label>
-             <select name="cableSource" className="w-full bg-slate-800 border border-slate-600 rounded p-3 mb-2 text-white" onChange={handleChange}>
-                <option value="Rolo 100m">Rolo de 100m</option>
-                <option value="Rolo 200m">Rolo de 200m</option>
+          <div className="bg-slate-900/50 p-3 rounded border border-slate-700 mt-2">
+             <span className="text-xs text-sky-400 font-bold block mb-2">MATERIAIS</span>
+             <select name="cableSource" className="w-full bg-slate-800 border border-slate-600 rounded p-2 mb-2 text-white" onChange={handleChange}>
+                <option value="Rolo 100m">Rolo 100m</option>
+                <option value="Rolo 200m">Rolo 200m</option>
                 <option value="Bobina 1000m">Bobina 1000m</option>
              </select>
              <div className="grid grid-cols-3 gap-2">
-                <div><label className="text-[10px] text-slate-400">Metros</label><input name="cableUsed" type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} /></div>
-                <div><label className="text-[10px] text-slate-400">Conect.</label><input name="connectors" type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} /></div>
-                <div><label className="text-[10px] text-slate-400">Alças</label><input name="anchors" type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} /></div>
+                <input name="cableUsed" type="number" placeholder="Metros" className="bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+                <input name="connectors" type="number" placeholder="Conec." className="bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+                <input name="anchors" type="number" placeholder="Alças" className="bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
              </div>
           </div>
         </div>
 
-        {/* FINALIZAÇÃO */}
         <div className="space-y-3 pt-4 border-t border-slate-700">
            <input name="signal" placeholder="Sinal (dB)" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
-           <div className="flex gap-4 text-sm">
-             <label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(formData.hasSignal)} onChange={(e) => setFormData(p => ({...p, hasSignal: e.target.checked}))} className="accent-sky-500 w-5 h-5"/> Com Sinal</label>
-             <label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(formData.hasHubBox)} onChange={(e) => setFormData(p => ({...p, hasHubBox: e.target.checked}))} className="accent-sky-500 w-5 h-5"/> Hub Box</label>
+           <div className="flex gap-4 text-sm text-slate-300">
+             <label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(formData.hasSignal)} onChange={(e) => setFormData(p => ({...p, hasSignal: e.target.checked}))} className="w-5 h-5"/> Com Sinal</label>
+             <label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(formData.hasHubBox)} onChange={(e) => setFormData(p => ({...p, hasHubBox: e.target.checked}))} className="w-5 h-5"/> Hub Box</label>
            </div>
            <select name="status" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange}>
               {STATUS_OPTIONS.map(opt => <option key={opt.value} value={opt.label}>{opt.label}</option>)}
@@ -256,84 +210,20 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
            <textarea name="team" placeholder="Equipe (Nome | RE)" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white h-20" onChange={handleChange}></textarea>
         </div>
 
-        {/* CÂMERA */}
         <div className="pt-4 border-t border-slate-700">
-            <h3 className="text-sky-400 text-xs font-bold uppercase mb-2">Evidência Fotográfica</h3>
-            <label className={`block w-full ${isProcessing ? 'bg-slate-800' : 'bg-slate-700 hover:bg-slate-600'} p-6 rounded-lg border-2 border-dashed ${formData.address ? 'border-sky-500' : 'border-slate-500'} text-center cursor-pointer transition-all`}>
+            <label className={`block w-full p-6 rounded-lg border-2 border-dashed text-center cursor-pointer ${formData.address ? 'border-sky-500 bg-slate-800' : 'border-slate-600 bg-slate-800'}`}>
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} disabled={isProcessing} />
                 <div className="flex flex-col items-center gap-2">
-                    <Camera className={`w-8 h-8 ${isProcessing ? 'text-sky-400 animate-pulse' : 'text-slate-300'}`} />
-                    <span className="font-bold text-white">{isProcessing ? 'Processando Carimbo...' : '📸 TIRAR FOTO'}</span>
-                    {!formData.address && <span className="text-xs text-red-400 mt-1">(Pegue o GPS antes de tirar a foto!)</span>}
+                    <Camera className={isProcessing ? "animate-spin text-sky-400" : "text-sky-400"} />
+                    <span className="font-bold text-white">{isProcessing ? 'PROCESSANDO...' : 'TIRAR FOTO COM CARIMBO'}</span>
+                    {!formData.address && <span className="text-xs text-red-400 block mt-1">⚠️ Use o GPS antes da foto!</span>}
                 </div>
             </label>
-            
-            {photoPreview && (
-                <div className="mt-4 animate-in fade-in zoom-in duration-300">
-                    <p className="text-xs text-sky-400 mb-1 text-center font-bold">PRÉVIA COM TIMESTAMP:</p>
-                    <img src={photoPreview} className="w-full h-auto object-contain rounded-lg border-2 border-slate-600 bg-black shadow-xl" />
-                </div>
-            )}
+            {photoPreview && <img src={photoPreview} className="mt-4 w-full h-auto rounded-lg border border-slate-600" />}
         </div>
 
-        <button type="submit" disabled={isProcessing} className="w-full py-4 rounded-lg bg-sky-600 text-white font-bold text-lg shadow-lg flex justify-center items-center gap-2 disabled:opacity-50 active:scale-95 transition-transform">
-            <Save /> {isProcessing ? 'Aguarde...' : 'SALVAR REGISTRO'}
-        </button>
+        <button type="submit" disabled={isProcessing} className="w-full py-4 rounded-lg bg-sky-600 text-white font-bold text-lg shadow-lg">SALVAR</button>
       </form>
-    </div>
-  );
-};
-
-// --- LISTA ---
-const DeploymentList = ({ deployments, onDelete }: any) => {
-  const handleShare = async (d: Deployment) => {
-    const text = `*RELATÓRIO NETBONUS*\nOS: ${d.serviceId}\nEND: ${d.address}\nDATA: ${d.date}\n---\nTORRES: ${d.towers}\nCABO: ${d.cableUsed || 0}m (${d.cableSource})\nCONECTORES: ${d.connectors || 0}\nALÇAS: ${d.anchors || 0}\nSINAL: ${d.signal} (${d.hasSignal ? 'OK' : 'SEM'})\n---\nSTATUS: ${d.status}\nEQUIPE: ${d.team || '-'}`;
-    
-    if (navigator.share) {
-        try {
-            let filesArray: File[] = [];
-            if (d.photo) {
-                const res = await fetch(d.photo);
-                const blob = await res.blob();
-                filesArray = [new File([blob], `OS_${d.serviceId}.jpg`, { type: 'image/jpeg' })];
-            }
-            if (filesArray.length && navigator.canShare({ files: filesArray })) await navigator.share({ text, files: filesArray });
-            else await navigator.share({ text });
-        } catch (e) { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); }
-    } else { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); }
-  };
-
-  if (!deployments.length) return <div className="text-center p-10 text-slate-500">Sem registros.</div>;
-
-  return (
-    <div className="space-y-4 pb-24">
-      {deployments.map((item: any) => (
-        <div key={item.id} className="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700">
-          <div className={`p-3 flex justify-between ${item.hasSignal ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
-            <h3 className="font-bold text-white">OS: {item.serviceId}</h3>
-            <span className="text-xs font-bold text-slate-300">{item.date}</span>
-          </div>
-          <div className="p-4 space-y-2">
-             <div className="flex gap-2 text-sm text-slate-300"><MapPin size={16} className="text-sky-400 shrink-0"/> <span className="truncate">{item.address}</span></div>
-             <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="bg-slate-900/50 p-2 rounded border border-slate-600"><div className="text-xs text-slate-500">TORRES</div><div className="text-lg font-mono text-white">{item.towers}</div></div>
-                <div className="bg-slate-900/50 p-2 rounded border border-slate-600"><div className="text-xs text-slate-500">CABO</div><div className="text-sm font-mono text-white">{item.cableUsed || 0}m</div></div>
-             </div>
-             
-             {item.photo && (
-                 <div className="mt-2 relative">
-                    <img src={item.photo} className="w-full h-48 object-contain bg-black rounded border border-slate-600" />
-                    <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-sm border border-white/20">📍 GPS Carimbado</div>
-                 </div>
-             )}
-             
-             <div className="flex gap-3 mt-4 pt-3 border-t border-slate-700">
-                <button onClick={() => handleShare(item)} className="flex-1 bg-green-600 py-3 rounded text-white font-bold flex justify-center gap-2 items-center active:bg-green-700"><Share2 size={18}/> WhatsApp</button>
-                <button onClick={() => onDelete(item.id)} className="w-12 bg-slate-700 py-3 rounded text-red-400 flex justify-center items-center active:bg-slate-600"><Trash2 size={18}/></button>
-             </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 };
@@ -351,6 +241,22 @@ const App = () => {
 
   useEffect(() => { localStorage.setItem('netbonus_deployments', JSON.stringify(deployments)); }, [deployments]);
 
+  const handleDelete = (id: string) => setDeployments(p => p.filter(d => d.id !== id));
+  
+  const handleShare = async (d: Deployment) => {
+     const text = `*RELATÓRIO NETBONUS*\nOS: ${d.serviceId}\nEND: ${d.address}\nDATA: ${d.date}\n---\nTORRES: ${d.towers}\nCABO: ${d.cableUsed || 0}m\nMATERIAIS: ${d.connectors} Conectores, ${d.anchors} Alças\nSINAL: ${d.signal}\nSTATUS: ${d.status}`;
+     if (navigator.share) {
+         try {
+             if (d.photo) {
+                 const res = await fetch(d.photo);
+                 const blob = await res.blob();
+                 const file = new File([blob], `OS_${d.serviceId}.jpg`, { type: 'image/jpeg' });
+                 await navigator.share({ text, files: [file] });
+             } else { await navigator.share({ text }); }
+         } catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); }
+     } else { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); }
+  };
+
   const totalTowers = deployments.reduce((acc, curr) => acc + (curr.hasSignal ? curr.towers : 0), 0);
   let prize = 0;
   if (totalTowers >= 17 && totalTowers <= 22) prize = totalTowers * (role === 'AUXILIAR' ? 30 : 60);
@@ -360,26 +266,54 @@ const App = () => {
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans max-w-md mx-auto shadow-2xl relative flex flex-col">
       {view !== 'FORM' && (
         <header className="bg-slate-800 p-4 sticky top-0 z-10 flex justify-between items-center border-b border-slate-700">
-          <h1 className="font-bold text-lg text-white">NetBonus <span className="text-xs font-normal text-slate-400">v2.0 GPS</span></h1>
+          <h1 className="font-bold text-lg text-white">NetBonus <span className="text-xs text-sky-400">GPS v2.0</span></h1>
           <button onClick={() => setRole(r => r === 'AUXILIAR' ? 'OFICIAL' : 'AUXILIAR')} className="text-xs font-bold px-3 py-1 rounded-full bg-slate-700 border border-slate-600">{role}</button>
         </header>
       )}
 
-      <main className={`flex-1 p-4 ${view === 'FORM' ? 'p-0' : ''}`}>
+      <main className="flex-1 p-4">
         {view === 'DASHBOARD' && (
           <div className="space-y-6">
              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700"><div className="text-3xl font-bold text-sky-400">{totalTowers}</div><div className="text-xs text-slate-400 uppercase">Torres</div></div>
-                <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700"><div className="text-3xl font-bold text-green-400">R$ {prize}</div><div className="text-xs text-slate-400 uppercase">Prêmio</div></div>
+                <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700"><div className="text-3xl font-bold text-sky-400">{totalTowers}</div><div className="text-xs text-slate-400">TORRES</div></div>
+                <div className="bg-slate-800 p-4 rounded-xl text-center border border-slate-700"><div className="text-3xl font-bold text-green-400">R$ {prize}</div><div className="text-xs text-slate-400">PRÊMIO</div></div>
              </div>
-             <button onClick={() => setView('FORM')} className="w-full bg-sky-600 hover:bg-sky-500 text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform">NOVA IMPLANTAÇÃO</button>
+             <button onClick={() => setView('FORM')} className="w-full bg-sky-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg">NOVA IMPLANTAÇÃO</button>
           </div>
         )}
-        {view === 'LIST' && <DeploymentList deployments={deployments} onDelete={(id: string) => setDeployments(p => p.filter(d => d.id !== id))} />}
+
+        {view === 'LIST' && (
+           <div className="space-y-4 pb-20">
+             {!deployments.length && <div className="text-center text-slate-500 mt-10">Sem registros.</div>}
+             {deployments.map(d => (
+               <div key={d.id} className="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700">
+                  <div className="p-3 bg-slate-900/50 flex justify-between"><span className="font-bold">OS: {d.serviceId}</span><span className="text-xs text-slate-400">{d.date}</span></div>
+                  <div className="p-4 space-y-2">
+                     <div className="text-sm flex gap-2"><MapPin size={16} className="text-sky-400 shrink-0"/> <span className="truncate">{d.address}</span></div>
+                     <div className="text-sm">Torres: {d.towers} | Cabo: {d.cableUsed || 0}m</div>
+                     {d.photo && <img src={d.photo} className="w-full h-32 object-cover rounded mt-2 border border-slate-600" />}
+                     <div className="flex gap-2 mt-2 pt-2 border-t border-slate-700">
+                        <button onClick={() => handleShare(d)} className="flex-1 bg-green-600 py-2 rounded text-white text-sm font-bold flex justify-center gap-2"><Share2 size={16}/> Zap</button>
+                        <button onClick={() => handleDelete(d.id)} className="w-10 bg-slate-700 py-2 rounded text-red-400 flex justify-center"><Trash2 size={16}/></button>
+                     </div>
+                  </div>
+               </div>
+             ))}
+           </div>
+        )}
+
         {view === 'FORM' && <DeploymentForm onSave={(data: any) => { setDeployments(p => [{...data, id: crypto.randomUUID(), createdAt: Date.now()}, ...p]); setView('DASHBOARD'); }} onCancel={() => setView('DASHBOARD')} />}
       </main>
 
       {view !== 'FORM' && (
         <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-800 border-t border-slate-700 px-6 py-3 flex justify-between items-center z-20">
-          <button onClick={() => setView('DASHBOARD')} className={`flex flex-col items-center gap-1 ${view === 'DASHBOARD' ? 'text-sky-400' : 'text-slate-500'}`}><Home className="w-6 h-6" /><span className="text-[10px]">Início</span></button>
-          <button onClick={() => setView('FORM')} className="bg-sky-600 text-white p-3 rounded-full -mt-12 shadow-lg border-4 border-slate-900 active:scale-90 transition-transform"><Plus
+          <button onClick={() => setView('DASHBOARD')} className={`flex flex-col items-center gap-1 ${view === 'DASHBOARD' ? 'text-sky-400' : 'text-slate-500'}`}><Home className="w-6 h-6"/><span className="text-[10px]">Início</span></button>
+          <button onClick={() => setView('FORM')} className="bg-sky-600 text-white p-3 rounded-full -mt-12 shadow-lg border-4 border-slate-900"><Plus className="w-8 h-8"/></button>
+          <button onClick={() => setView('LIST')} className={`flex flex-col items-center gap-1 ${view === 'LIST' ? 'text-sky-400' : 'text-slate-500'}`}><List className="w-6 h-6"/><span className="text-[10px]">Lista</span></button>
+        </nav>
+      )}
+    </div>
+  );
+};
+
+export default App;
