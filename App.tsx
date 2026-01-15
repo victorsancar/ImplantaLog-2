@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Home, List, Plus, Save, X, Camera, MapPin, Trash2, Share2, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Home, List, Plus, Save, X, Camera, MapPin, Trash2, Share2, Loader2, Image as ImageIcon } from 'lucide-react';
 
 // --- DEFINIÇÃO DOS DADOS ---
 interface Deployment {
@@ -37,8 +37,11 @@ const STATUS_OPTIONS = [
 // --- FORMULÁRIO ---
 const DeploymentForm = ({ onSave, onCancel }: any) => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  // Removemos o GPS automático aqui para você usar o do Timestamp Camera se preferir,
-  // ou pode preencher manualmente para o relatório de texto.
+  const [isLocating, setIsLocating] = useState(false);
+  
+  // Referências para os inputs escondidos
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Partial<Deployment>>({
     date: new Date().toLocaleDateString('pt-BR'),
@@ -54,11 +57,26 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
     setFormData(prev => ({ ...prev, [name]: type === 'number' ? Number(value) : value }));
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) return alert("GPS desligado");
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+          const data = await res.json();
+          const addr = data.address ? `${data.address.road || ''}, ${data.address.suburb || ''} - ${data.address.city || ''}` : `Lat:${pos.coords.latitude}`;
+          setFormData(p => ({ ...p, address: addr }));
+        } catch { setFormData(p => ({ ...p, address: `GPS: ${pos.coords.latitude}, ${pos.coords.longitude}` })); }
+        finally { setIsLocating(false); }
+      },
+      () => { alert("Erro ao buscar GPS"); setIsLocating(false); }
+    );
+  };
+
   const handlePhotoChange = (e: any) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Aqui o código apenas LÊ a foto que veio do Timestamp Camera
-      // Não alteramos a imagem, pois o Timestamp já escreveu nela.
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64 = reader.result as string;
@@ -77,12 +95,15 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
       </div>
       <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="p-4 space-y-6">
         
+        {/* DADOS */}
         <div className="space-y-3">
           <label className="text-sky-400 text-xs font-bold uppercase">Dados Principais</label>
           <input name="serviceId" placeholder="ID da OS" inputMode="numeric" required className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
           
-          {/* Endereço (Apenas texto para o relatório do WhatsApp) */}
-          <input name="address" value={formData.address} placeholder="Endereço (Para o texto do Zap)" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
+          <div className="flex gap-2">
+              <input name="address" value={formData.address} placeholder="Endereço" className="flex-1 bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
+              <button type="button" onClick={handleGetLocation} className="bg-sky-600 text-white px-4 rounded">{isLocating ? <Loader2 className="animate-spin"/> : <MapPin />}</button>
+          </div>
           
           <input name="responsible" placeholder="Responsável" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
           <div className="grid grid-cols-2 gap-3">
@@ -91,6 +112,7 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
           </div>
         </div>
 
+        {/* PRODUÇÃO */}
         <div className="space-y-3 pt-4 border-t border-slate-700">
           <label className="text-sky-400 text-xs font-bold uppercase">Produção</label>
           <div className="grid grid-cols-2 gap-3">
@@ -101,6 +123,7 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
           </div>
         </div>
 
+        {/* MATERIAIS */}
         <div className="space-y-3 pt-4 border-t border-slate-700 bg-slate-900/50 p-3 rounded">
             <span className="text-sky-400 text-xs font-bold uppercase">Materiais</span>
             <select name="cableSource" className="w-full bg-slate-800 border border-slate-600 rounded p-2 mb-2 text-white" onChange={handleChange}>
@@ -128,23 +151,52 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
            <textarea name="team" placeholder="Equipe" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white h-20" onChange={handleChange}></textarea>
         </div>
 
+        {/* FOTO - OPÇÃO DUPLA */}
         <div className="pt-4 border-t border-slate-700">
-            {/* AQUI ESTÁ O SEGREDO: 
-               input type="file" com capture="environment" 
-               Isso força o Android a perguntar qual app usar (Câmera ou Timestamp)
-            */}
-            <label className="block w-full bg-slate-700 hover:bg-slate-600 p-6 rounded-lg border-2 border-dashed border-sky-500 text-center cursor-pointer transition-all">
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} />
-                <div className="flex flex-col items-center gap-2">
+            <span className="text-sky-400 text-xs font-bold uppercase mb-2 block">Evidência Fotográfica</span>
+            
+            {/* Inputs Ocultos */}
+            <input 
+                type="file" 
+                accept="image/*" 
+                capture="environment" 
+                className="hidden" 
+                ref={cameraInputRef}
+                onChange={handlePhotoChange} 
+            />
+            <input 
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                ref={galleryInputRef}
+                onChange={handlePhotoChange} 
+            />
+
+            {/* Botões Visíveis */}
+            <div className="grid grid-cols-2 gap-3">
+                <button 
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="bg-slate-700 hover:bg-slate-600 p-4 rounded-lg flex flex-col items-center gap-2 border-2 border-slate-600 active:scale-95 transition-all"
+                >
                     <Camera className="text-sky-400 w-8 h-8" />
-                    <span className="font-bold text-white uppercase">Abrir App de Câmera</span>
-                    <span className="text-xs text-slate-400">(Escolha o Timestamp Camera na lista)</span>
-                </div>
-            </label>
+                    <span className="font-bold text-white text-sm">CÂMERA</span>
+                </button>
+
+                <button 
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="bg-slate-700 hover:bg-slate-600 p-4 rounded-lg flex flex-col items-center gap-2 border-2 border-slate-600 active:scale-95 transition-all"
+                >
+                    <ImageIcon className="text-green-400 w-8 h-8" />
+                    <span className="font-bold text-white text-sm">GALERIA</span>
+                </button>
+            </div>
+
             {photoPreview && <img src={photoPreview} className="mt-4 w-full h-auto rounded-lg border border-slate-600" />}
         </div>
 
-        <button type="submit" className="w-full py-4 rounded-lg bg-sky-600 text-white font-bold text-lg shadow-lg">SALVAR</button>
+        <button type="submit" className="w-full py-4 rounded-lg bg-sky-600 text-white font-bold text-lg shadow-lg mt-4">SALVAR</button>
       </form>
     </div>
   );
@@ -153,7 +205,7 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
 // --- LISTA ---
 const DeploymentList = ({ deployments, onDelete }: any) => {
   const handleShare = async (d: Deployment) => {
-    // Monta o texto apenas com o que foi digitado
+    // Texto do Relatório
     const text = `
 *RELATÓRIO NETBONUS*
 -------------------------
@@ -203,7 +255,6 @@ const DeploymentList = ({ deployments, onDelete }: any) => {
           <div className="p-4 space-y-2">
              <div className="text-sm flex gap-2"><MapPin size={16} className="text-sky-400 shrink-0"/> <span className="truncate">{item.address}</span></div>
              
-             {/* A foto aparece aqui do jeito que veio do app externo (já carimbada por ele) */}
              {item.photo && <img src={item.photo} className="w-full h-48 object-cover rounded mt-2 border border-slate-600 bg-black" />}
              
              <div className="flex gap-2 mt-2 pt-2 border-t border-slate-700">
@@ -239,7 +290,7 @@ const App = () => {
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans max-w-md mx-auto shadow-2xl relative flex flex-col">
       {view !== 'FORM' && (
         <header className="bg-slate-800 p-4 sticky top-0 z-10 flex justify-between items-center border-b border-slate-700">
-          <h1 className="font-bold text-lg text-white">NetBonus <span className="text-xs text-sky-400">External Cam</span></h1>
+          <h1 className="font-bold text-lg text-white">NetBonus <span className="text-xs text-sky-400">v1.6</span></h1>
           <button onClick={() => setRole(r => r === 'AUXILIAR' ? 'OFICIAL' : 'AUXILIAR')} className="text-xs font-bold px-3 py-1 rounded-full bg-slate-700 border border-slate-600">{role}</button>
         </header>
       )}
@@ -261,14 +312,4 @@ const App = () => {
       </main>
 
       {view !== 'FORM' && (
-        <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-800 border-t border-slate-700 px-6 py-3 flex justify-between items-center z-20">
-          <button onClick={() => setView('DASHBOARD')} className={`flex flex-col items-center gap-1 ${view === 'DASHBOARD' ? 'text-sky-400' : 'text-slate-500'}`}><Home className="w-6 h-6"/><span className="text-[10px]">Início</span></button>
-          <button onClick={() => setView('FORM')} className="bg-sky-600 text-white p-3 rounded-full -mt-12 shadow-lg border-4 border-slate-900"><Plus className="w-8 h-8"/></button>
-          <button onClick={() => setView('LIST')} className={`flex flex-col items-center gap-1 ${view === 'LIST' ? 'text-sky-400' : 'text-slate-500'}`}><List className="w-6 h-6"/><span className="text-[10px]">Lista</span></button>
-        </nav>
-      )}
-    </div>
-  );
-};
-
-export default App;
+        <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-8
