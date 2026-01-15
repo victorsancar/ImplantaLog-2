@@ -18,7 +18,6 @@ interface Deployment {
   signal: string;
   hasSignal: boolean;
   hasHubBox: boolean;
-  // NOVOS CAMPOS DE MATERIAIS
   cableSource?: string;
   cableUsed?: number;
   connectors?: number;
@@ -36,9 +35,65 @@ const STATUS_OPTIONS = [
   { value: 'CANCELADO', label: 'Cancelado' },
 ];
 
-// --- COMPONENTE: FORMULÁRIO ---
+// --- FUNÇÃO PARA CARIMBAR A FOTO (TIMESTAMP) ---
+const addWatermark = (file: File, info: { date: string, time: string, address: string, os: string }): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Configura tamanho do canvas igual a imagem
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        // Desenha a imagem original
+        ctx.drawImage(img, 0, 0);
+
+        // Configurações do Carimbo (Fundo preto semitransparente)
+        const fontSize = Math.max(16, canvas.width / 25); // Fonte dinâmica baseada no tamanho da foto
+        const padding = fontSize / 2;
+        const bottomY = canvas.height - (fontSize * 4) - padding; // Posição Y
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(0, bottomY, canvas.width, canvas.height - bottomY);
+
+        // Texto
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = '#FFD700'; // Cor Dourada/Amarela para destaque
+        ctx.textBaseline = 'top';
+
+        const textX = padding;
+        let currentY = bottomY + padding;
+
+        // Linha 1: Data e Hora
+        ctx.fillText(`📅 ${info.date} às ${info.time}`, textX, currentY);
+        currentY += fontSize * 1.2;
+
+        // Linha 2: Endereço
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(`📍 ${info.address || 'Endereço não informado'}`, textX, currentY);
+        currentY += fontSize * 1.2;
+
+        // Linha 3: OS
+        ctx.fillText(`🆔 OS: ${info.os || 'N/A'}`, textX, currentY);
+
+        resolve(canvas.toDataURL('image/jpeg', 0.8)); // Retorna imagem comprimida
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
+// --- FORMULÁRIO ---
 const DeploymentForm = ({ onSave, onCancel }: any) => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false); // Estado para mostrar carregando
+
   const [formData, setFormData] = useState<Partial<Deployment>>({
     type: 'IMPLANTAÇÃO',
     date: new Date().toISOString().split('T')[0],
@@ -53,15 +108,22 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
     setFormData(prev => ({ ...prev, [name]: type === 'number' ? Number(value) : value }));
   };
 
-  const handlePhotoChange = (e: any) => {
+  const handlePhotoChange = async (e: any) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-        setFormData(prev => ({ ...prev, photo: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      setIsProcessing(true); // Avisa que está processando
+      
+      // Chama a função de carimbo
+      const watermarkedImage = await addWatermark(file, {
+        date: new Date(formData.date + 'T' + formData.time).toLocaleDateString('pt-BR'),
+        time: formData.time || '',
+        address: formData.address || '',
+        os: formData.serviceId || ''
+      });
+
+      setPhotoPreview(watermarkedImage);
+      setFormData(prev => ({ ...prev, photo: watermarkedImage }));
+      setIsProcessing(false);
     }
   };
 
@@ -77,7 +139,7 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
         <div className="space-y-3">
           <h3 className="text-sky-400 text-xs font-bold uppercase">Serviço</h3>
           <input name="serviceId" placeholder="ID da OS" inputMode="numeric" required className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
-          <input name="address" placeholder="Endereço" required className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
+          <input name="address" placeholder="Endereço (Aparecerá na Foto)" required className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
           <input name="responsible" placeholder="Responsável" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
           <div className="grid grid-cols-2 gap-3">
              <input name="date" type="date" value={formData.date} className="bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
@@ -85,7 +147,7 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
           </div>
         </div>
 
-        {/* PRODUÇÃO & MATERIAIS */}
+        {/* PRODUÇÃO */}
         <div className="space-y-3 pt-4 border-t border-slate-700">
           <h3 className="text-sky-400 text-xs font-bold uppercase">Produção</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -94,21 +156,21 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
           </div>
           
           <div className="bg-slate-900/50 p-3 rounded mt-3 border border-slate-700">
-             <label className="text-xs text-sky-400 font-bold uppercase mb-2 block">Materiais Utilizados</label>
+             <label className="text-xs text-sky-400 font-bold uppercase mb-2 block">Materiais</label>
              <select name="cableSource" className="w-full bg-slate-800 border border-slate-600 rounded p-3 mb-2 text-white" onChange={handleChange}>
                 <option value="Rolo 100m">Rolo de 100m</option>
                 <option value="Rolo 200m">Rolo de 200m</option>
                 <option value="Bobina 1000m">Bobina 1000m</option>
              </select>
              <div className="grid grid-cols-3 gap-2">
-                <div><label className="text-[10px] text-slate-400">Metros</label><input name="cableUsed" type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} /></div>
-                <div><label className="text-[10px] text-slate-400">Conect.</label><input name="connectors" type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} /></div>
-                <div><label className="text-[10px] text-slate-400">Alças</label><input name="anchors" type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} /></div>
+                <input name="cableUsed" type="number" placeholder="Metros" className="bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+                <input name="connectors" type="number" placeholder="Conec." className="bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
+                <input name="anchors" type="number" placeholder="Alças" className="bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
              </div>
           </div>
         </div>
 
-        {/* STATUS & FOTO */}
+        {/* STATUS */}
         <div className="space-y-3 pt-4 border-t border-slate-700">
            <input name="signal" placeholder="Sinal (dB)" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
            <div className="flex gap-4 text-sm">
@@ -118,22 +180,33 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
            <select name="status" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange}>
               {STATUS_OPTIONS.map(opt => <option key={opt.value} value={opt.label}>{opt.label}</option>)}
            </select>
-           <textarea name="team" placeholder="Equipe (Nome | RE)" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white h-20" onChange={handleChange}></textarea>
+           <textarea name="team" placeholder="Equipe" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white h-20" onChange={handleChange}></textarea>
         </div>
 
-        <label className="block w-full bg-slate-700 p-4 rounded-lg border-2 border-dashed border-slate-500 text-center cursor-pointer">
-            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} />
-            <div className="flex flex-col items-center gap-2"><Camera className="text-sky-400" /><span>Tirar Foto</span></div>
+        <label className={`block w-full ${isProcessing ? 'bg-slate-800' : 'bg-slate-700 hover:bg-slate-600'} p-4 rounded-lg border-2 border-dashed border-slate-500 text-center cursor-pointer transition-colors`}>
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} disabled={isProcessing} />
+            <div className="flex flex-col items-center gap-2">
+                <Camera className={`text-sky-400 ${isProcessing ? 'animate-pulse' : ''}`} />
+                <span>{isProcessing ? 'Aplicando Carimbo...' : 'Tirar Foto (Com Carimbo)'}</span>
+            </div>
         </label>
-        {photoPreview && <img src={photoPreview} className="w-full h-48 object-cover rounded-lg" />}
+        
+        {photoPreview && (
+            <div className="mt-4">
+                <p className="text-xs text-sky-400 mb-1 text-center">Prévia com Carimbo:</p>
+                <img src={photoPreview} className="w-full h-48 object-contain rounded-lg border border-slate-600 bg-black" />
+            </div>
+        )}
 
-        <button type="submit" className="w-full py-4 rounded-lg bg-sky-600 text-white font-bold text-lg shadow-lg flex justify-center items-center gap-2"><Save /> SALVAR</button>
+        <button type="submit" disabled={isProcessing} className="w-full py-4 rounded-lg bg-sky-600 text-white font-bold text-lg shadow-lg flex justify-center items-center gap-2 disabled:opacity-50">
+            <Save /> {isProcessing ? 'Processando...' : 'SALVAR'}
+        </button>
       </form>
     </div>
   );
 };
 
-// --- COMPONENTE: LISTA ---
+// --- LISTA ---
 const DeploymentList = ({ deployments, onDelete }: any) => {
   const handleShare = async (d: Deployment) => {
     const text = `*RELATÓRIO NETBONUS*\nOS: ${d.serviceId}\nEND: ${d.address}\nDATA: ${d.date}\n---\nTORRES: ${d.towers}\nCABO: ${d.cableUsed || 0}m (${d.cableSource})\nCONECTORES: ${d.connectors || 0}\nALÇAS: ${d.anchors || 0}\nSINAL: ${d.signal} (${d.hasSignal ? 'OK' : 'SEM'})\n---\nSTATUS: ${d.status}\nEQUIPE: ${d.team || '-'}`;
@@ -144,7 +217,7 @@ const DeploymentList = ({ deployments, onDelete }: any) => {
             if (d.photo) {
                 const res = await fetch(d.photo);
                 const blob = await res.blob();
-                filesArray = [new File([blob], "relatorio.jpg", { type: 'image/jpeg' })];
+                filesArray = [new File([blob], "relatorio_carimbado.jpg", { type: 'image/jpeg' })];
             }
             if (filesArray.length && navigator.canShare({ files: filesArray })) await navigator.share({ text, files: filesArray });
             else await navigator.share({ text });
@@ -168,10 +241,15 @@ const DeploymentList = ({ deployments, onDelete }: any) => {
                 <div className="bg-slate-900/50 p-2 rounded border border-slate-600"><div className="text-xs text-slate-500">TORRES</div><div className="text-lg font-mono text-white">{item.towers}</div></div>
                 <div className="bg-slate-900/50 p-2 rounded border border-slate-600"><div className="text-xs text-slate-500">CABO</div><div className="text-sm font-mono text-white">{item.cableUsed || 0}m</div></div>
              </div>
-             <div className="text-xs text-slate-400 p-2 bg-slate-900/50 rounded border border-slate-700">
-                Materiais: {item.connectors} Conectores, {item.anchors} Alças
-             </div>
-             {item.photo && <img src={item.photo} className="w-full h-32 object-cover rounded mt-2" />}
+             <div className="text-xs text-slate-400">Materiais: {item.connectors} Conectores, {item.anchors} Alças</div>
+             
+             {item.photo && (
+                 <div className="mt-2 relative group">
+                    <img src={item.photo} className="w-full h-40 object-contain bg-black rounded border border-slate-600" />
+                    <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">Carimbada</div>
+                 </div>
+             )}
+             
              <div className="flex gap-3 mt-4 pt-3 border-t border-slate-700">
                 <button onClick={() => handleShare(item)} className="flex-1 bg-green-600 py-2 rounded text-white font-bold flex justify-center gap-2"><Share2 size={16}/> WhatsApp</button>
                 <button onClick={() => onDelete(item.id)} className="w-12 bg-slate-700 py-2 rounded text-red-400 flex justify-center"><Trash2 size={16}/></button>
@@ -196,7 +274,6 @@ const App = () => {
 
   useEffect(() => { localStorage.setItem('netbonus_deployments', JSON.stringify(deployments)); }, [deployments]);
 
-  // Cálculo de Prêmio
   const totalTowers = deployments.reduce((acc, curr) => acc + (curr.hasSignal ? curr.towers : 0), 0);
   let prize = 0;
   if (totalTowers >= 17 && totalTowers <= 22) prize = totalTowers * (role === 'AUXILIAR' ? 30 : 60);
