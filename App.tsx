@@ -12,6 +12,8 @@ interface Deployment {
   time: string;
   towers: number;
   cdoe: number;
+  floors: number;
+  apartments: number;
   signal: string;
   hasSignal: boolean;
   hasHubBox: boolean;
@@ -21,6 +23,8 @@ interface Deployment {
   anchors?: number;
   status: string;
   team?: string;
+  facilities?: string;
+  notes?: string;
   photo?: string;
 }
 
@@ -30,8 +34,8 @@ const STATUS_OPTIONS = [
   { value: 'CANCELADO', label: 'Cancelado' },
 ];
 
-// --- FUNÇÃO CARIMBO (TIMESTAMP) ---
-const addWatermark = (file: File, info: { date: string, time: string, address: string, os: string }): Promise<string> => {
+// --- FUNÇÃO QUE DESENHA O RELATÓRIO NA FOTO ---
+const addWatermark = (file: File, d: Partial<Deployment>): Promise<string> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -43,39 +47,75 @@ const addWatermark = (file: File, info: { date: string, time: string, address: s
 
         canvas.width = img.width;
         canvas.height = img.height;
+
+        // 1. Desenha a foto original
         ctx.drawImage(img, 0, 0);
 
-        // Fundo preto transparente no rodapé
-        const fontSize = Math.max(30, canvas.width / 25);
-        const padding = fontSize;
-        const lineHeight = fontSize * 1.3;
-        const boxHeight = (lineHeight * 3) + (padding * 2);
-        const yStart = canvas.height - boxHeight;
+        // 2. Cria uma camada escura sobre toda a foto para o texto ficar legível
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // 60% de escuridão
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        ctx.fillRect(0, yStart, canvas.width, boxHeight);
-
-        // Textos
-        ctx.textBaseline = 'top';
-        let textY = yStart + padding;
-        const textX = padding;
-
-        // 1. Data e Hora (Amarelo)
-        ctx.font = `bold ${fontSize}px sans-serif`;
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText(`📅 ${info.date} • ${info.time}`, textX, textY);
+        // 3. Configuração da Fonte
+        const fontSize = Math.max(24, canvas.width / 35); // Tamanho dinâmico
+        const lineHeight = fontSize * 1.5;
+        const margin = fontSize;
         
-        // 2. Endereço (Branco)
-        textY += lineHeight;
-        ctx.fillStyle = '#FFFFFF';
         ctx.font = `${fontSize}px sans-serif`;
-        let addr = `📍 ${info.address || 'Local não definido'}`;
-        if (addr.length > 55) addr = addr.substring(0, 55) + '...';
-        ctx.fillText(addr, textX, textY);
+        ctx.fillStyle = '#FFFFFF'; // Texto Branco
+        ctx.textBaseline = 'top';
+        
+        let y = margin; // Começa no topo
 
-        // 3. OS (Branco)
-        textY += lineHeight;
-        ctx.fillText(`🆔 OS: ${info.os || 'N/A'}`, textX, textY);
+        // Função auxiliar para escrever linhas
+        const writeLine = (text: string, color = '#FFFFFF', isBold = false) => {
+            ctx.font = isBold ? `bold ${fontSize}px sans-serif` : `${fontSize}px sans-serif`;
+            ctx.fillStyle = color;
+            ctx.fillText(text, margin, y);
+            y += lineHeight;
+        };
+
+        // --- ESCREVENDO O RELATÓRIO NA IMAGEM ---
+        
+        writeLine(`TIPO: IMPLANTAÇÃO`, '#FFFFFF', true);
+        writeLine(`ID: ${d.serviceId || ''}`);
+        writeLine(`END: ${d.address || ''}`);
+        writeLine(`RESP: ${d.responsible || ''}`);
+        writeLine(`DATA: ${d.date} às ${d.time}`);
+        
+        y += lineHeight / 2; // Espaço
+        writeLine('-------------------------');
+        y += lineHeight / 2;
+
+        writeLine(`PRODUÇÃO:`, '#FFD700', true); // Dourado
+        writeLine(`TORRES: ${d.towers || 0}`);
+        writeLine(`ANDARES: ${d.floors || 0} | APTOS: ${d.apartments || 0}`);
+        writeLine(`CDOE: ${d.cdoe || 0}`);
+        writeLine(`SINAL: ${d.signal || 'N/A'} (${d.hasSignal ? 'SIM' : 'NÃO'})`);
+        writeLine(`HUB BOX: ${d.hasHubBox ? 'SIM' : 'NÃO'}`);
+        
+        y += lineHeight / 2;
+        writeLine('-------------------------');
+        y += lineHeight / 2;
+
+        writeLine(`MATERIAIS:`, '#FFD700', true);
+        writeLine(`CABO: ${d.cableUsed || 0}m (${d.cableSource || '-'})`);
+        writeLine(`CONECTORES: ${d.connectors || 0} | ALÇAS: ${d.anchors || 0}`);
+
+        y += lineHeight / 2;
+        writeLine('-------------------------');
+        y += lineHeight / 2;
+
+        writeLine(`STATUS: ${d.status}`, '#00FF00', true); // Verde
+        writeLine(`FACILIDADES: ${d.facilities || 'N/A'}`);
+        
+        // Quebra de linha para equipe se for muito grande
+        const teamText = `EQUIPE: ${d.team || ''}`;
+        if (teamText.length > 40) {
+             writeLine(teamText.substring(0, 40));
+             writeLine(teamText.substring(40));
+        } else {
+             writeLine(teamText);
+        }
 
         resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
@@ -95,9 +135,9 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
     date: new Date().toISOString().split('T')[0],
     time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     hasSignal: true, hasHubBox: false,
-    towers: 1, cdoe: 0,
+    towers: 1, cdoe: 0, floors: 0, apartments: 0,
     cableSource: 'Rolo 100m', cableUsed: 0, connectors: 0, anchors: 0,
-    address: ''
+    address: '', status: 'IMPLANTADO OK'
   });
 
   const handleChange = (e: any) => {
@@ -106,44 +146,29 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
   };
 
   const handleGetLocation = () => {
-    if (!navigator.geolocation) return alert("GPS não suportado.");
+    if (!navigator.geolocation) return alert("GPS desligado");
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const { latitude, longitude } = pos.coords;
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
           const data = await res.json();
-          let addr = `Lat: ${latitude.toFixed(5)}, Lon: ${longitude.toFixed(5)}`;
-          if (data.address) {
-             const street = data.address.road || '';
-             const sub = data.address.suburb || data.address.neighbourhood || '';
-             const city = data.address.city || data.address.town || '';
-             addr = `${street}, ${sub} - ${city}`;
-          }
+          const addr = data.address ? `${data.address.road || ''}, ${data.address.suburb || ''} - ${data.address.city || ''}` : `Lat:${pos.coords.latitude}`;
           setFormData(p => ({ ...p, address: addr }));
-        } catch (e) {
-          setFormData(p => ({ ...p, address: `GPS: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}` }));
-        } finally { setIsLocating(false); }
+        } catch { setFormData(p => ({ ...p, address: `GPS: ${pos.coords.latitude}, ${pos.coords.longitude}` })); }
+        finally { setIsLocating(false); }
       },
-      () => { alert("Erro no GPS. Ative a localização."); setIsLocating(false); },
-      { enableHighAccuracy: true }
+      () => { alert("Erro GPS"); setIsLocating(false); }
     );
   };
 
   const handlePhotoChange = async (e: any) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!formData.address && !confirm("Sem endereço no GPS. A foto ficará sem local. Continuar?")) {
-        e.target.value = ''; return;
-      }
+      if (!formData.serviceId) return alert("Preencha o ID da OS antes da foto!");
       setIsProcessing(true);
-      const watermark = await addWatermark(file, {
-        date: new Date().toLocaleDateString('pt-BR'),
-        time: formData.time || '',
-        address: formData.address || '',
-        os: formData.serviceId || ''
-      });
+      // Gera a foto com o relatório escrito nela
+      const watermark = await addWatermark(file, formData);
       setPhotoPreview(watermark);
       setFormData(p => ({ ...p, photo: watermark }));
       setIsProcessing(false);
@@ -159,14 +184,12 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
       <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="p-4 space-y-6">
         
         <div className="space-y-3">
-          <label className="text-sky-400 text-xs font-bold uppercase">ID e Localização</label>
-          <input name="serviceId" placeholder="Número da OS" inputMode="numeric" required className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
+          <label className="text-sky-400 text-xs font-bold uppercase">Dados Principais</label>
+          <input name="serviceId" placeholder="ID da OS" inputMode="numeric" required className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
           
           <div className="flex gap-2">
-              <input name="address" value={formData.address} placeholder="Endereço (Clique no GPS 👉)" className="flex-1 bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
-              <button type="button" onClick={handleGetLocation} disabled={isLocating} className="bg-sky-600 text-white px-4 rounded flex items-center justify-center">
-                {isLocating ? <Loader2 className="animate-spin"/> : <MapPin />}
-              </button>
+              <input name="address" value={formData.address} placeholder="Endereço" className="flex-1 bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
+              <button type="button" onClick={handleGetLocation} className="bg-sky-600 text-white px-4 rounded">{isLocating ? <Loader2 className="animate-spin"/> : <MapPin />}</button>
           </div>
           
           <input name="responsible" placeholder="Responsável" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
@@ -179,13 +202,16 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
         <div className="space-y-3 pt-4 border-t border-slate-700">
           <label className="text-sky-400 text-xs font-bold uppercase">Produção</label>
           <div className="grid grid-cols-2 gap-3">
-            <div><span className="text-xs text-slate-400">Torres</span><input name="towers" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
-            <div><span className="text-xs text-slate-400">CDOE</span><input name="cdoe" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
+            <div><span className="text-[10px] text-slate-400">Torres</span><input name="towers" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
+            <div><span className="text-[10px] text-slate-400">CDOE</span><input name="cdoe" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
+            <div><span className="text-[10px] text-slate-400">Andares</span><input name="floors" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
+            <div><span className="text-[10px] text-slate-400">Aptos</span><input name="apartments" type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} /></div>
           </div>
-          
-          <div className="bg-slate-900/50 p-3 rounded border border-slate-700 mt-2">
-             <span className="text-xs text-sky-400 font-bold block mb-2">MATERIAIS</span>
-             <select name="cableSource" className="w-full bg-slate-800 border border-slate-600 rounded p-2 mb-2 text-white" onChange={handleChange}>
+        </div>
+
+        <div className="space-y-3 pt-4 border-t border-slate-700 bg-slate-900/50 p-3 rounded">
+            <span className="text-sky-400 text-xs font-bold uppercase">Materiais</span>
+            <select name="cableSource" className="w-full bg-slate-800 border border-slate-600 rounded p-2 mb-2 text-white" onChange={handleChange}>
                 <option value="Rolo 100m">Rolo 100m</option>
                 <option value="Rolo 200m">Rolo 200m</option>
                 <option value="Bobina 1000m">Bobina 1000m</option>
@@ -195,7 +221,6 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
                 <input name="connectors" type="number" placeholder="Conec." className="bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
                 <input name="anchors" type="number" placeholder="Alças" className="bg-slate-800 border border-slate-600 rounded p-2 text-white" onChange={handleChange} />
              </div>
-          </div>
         </div>
 
         <div className="space-y-3 pt-4 border-t border-slate-700">
@@ -207,16 +232,16 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
            <select name="status" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange}>
               {STATUS_OPTIONS.map(opt => <option key={opt.value} value={opt.label}>{opt.label}</option>)}
            </select>
-           <textarea name="team" placeholder="Equipe (Nome | RE)" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white h-20" onChange={handleChange}></textarea>
+           <input name="facilities" placeholder="Facilidades" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white" onChange={handleChange} />
+           <textarea name="team" placeholder="Equipe" className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white h-20" onChange={handleChange}></textarea>
         </div>
 
         <div className="pt-4 border-t border-slate-700">
-            <label className={`block w-full p-6 rounded-lg border-2 border-dashed text-center cursor-pointer ${formData.address ? 'border-sky-500 bg-slate-800' : 'border-slate-600 bg-slate-800'}`}>
+            <label className={`block w-full p-6 rounded-lg border-2 border-dashed text-center cursor-pointer ${isProcessing ? 'bg-slate-800' : 'bg-slate-700'}`}>
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} disabled={isProcessing} />
                 <div className="flex flex-col items-center gap-2">
-                    <Camera className={isProcessing ? "animate-spin text-sky-400" : "text-sky-400"} />
-                    <span className="font-bold text-white">{isProcessing ? 'PROCESSANDO...' : 'TIRAR FOTO COM CARIMBO'}</span>
-                    {!formData.address && <span className="text-xs text-red-400 block mt-1">⚠️ Use o GPS antes da foto!</span>}
+                    <Camera className="text-sky-400" />
+                    <span className="font-bold text-white">{isProcessing ? 'GERANDO RELATÓRIO...' : 'TIRAR FOTO DO RELATÓRIO'}</span>
                 </div>
             </label>
             {photoPreview && <img src={photoPreview} className="mt-4 w-full h-auto rounded-lg border border-slate-600" />}
@@ -224,6 +249,46 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
 
         <button type="submit" disabled={isProcessing} className="w-full py-4 rounded-lg bg-sky-600 text-white font-bold text-lg shadow-lg">SALVAR</button>
       </form>
+    </div>
+  );
+};
+
+// --- LISTA ---
+const DeploymentList = ({ deployments, onDelete }: any) => {
+  const handleShare = async (d: Deployment) => {
+    // Tenta compartilhar SOMENTE A FOTO, sem texto de legenda
+    if (navigator.share && d.photo) {
+        try {
+             const res = await fetch(d.photo);
+             const blob = await res.blob();
+             const file = new File([blob], `OS_${d.serviceId}.jpg`, { type: 'image/jpeg' });
+             await navigator.share({ files: [file] }); // Sem o campo 'text'
+        } catch (e) { 
+            alert("Erro ao compartilhar imagem. Tente salvar a foto primeiro.");
+        }
+    } else { 
+        alert("Seu navegador não suporta compartilhamento direto de imagem.");
+    }
+  };
+
+  if (!deployments.length) return <div className="text-center p-10 text-slate-500">Sem registros.</div>;
+
+  return (
+    <div className="space-y-4 pb-24">
+      {deployments.map((item: any) => (
+        <div key={item.id} className="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700">
+          <div className="p-3 bg-slate-900/50 flex justify-between"><span className="font-bold">OS: {item.serviceId}</span><span className="text-xs text-slate-400">{item.date}</span></div>
+          <div className="p-4 space-y-2">
+             <div className="text-sm flex gap-2"><MapPin size={16} className="text-sky-400 shrink-0"/> <span className="truncate">{item.address}</span></div>
+             {item.photo && <img src={item.photo} className="w-full h-48 object-contain rounded mt-2 border border-slate-600 bg-black" />}
+             
+             <div className="flex gap-2 mt-2 pt-2 border-t border-slate-700">
+                <button onClick={() => handleShare(item)} className="flex-1 bg-green-600 py-3 rounded text-white font-bold flex justify-center gap-2 items-center"><Share2 size={18}/> Enviar Foto</button>
+                <button onClick={() => onDelete(item.id)} className="w-12 bg-slate-700 py-3 rounded text-red-400 flex justify-center items-center"><Trash2 size={18}/></button>
+             </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
@@ -241,22 +306,6 @@ const App = () => {
 
   useEffect(() => { localStorage.setItem('netbonus_deployments', JSON.stringify(deployments)); }, [deployments]);
 
-  const handleDelete = (id: string) => setDeployments(p => p.filter(d => d.id !== id));
-  
-  const handleShare = async (d: Deployment) => {
-     const text = `*RELATÓRIO NETBONUS*\nOS: ${d.serviceId}\nEND: ${d.address}\nDATA: ${d.date}\n---\nTORRES: ${d.towers}\nCABO: ${d.cableUsed || 0}m\nMATERIAIS: ${d.connectors} Conectores, ${d.anchors} Alças\nSINAL: ${d.signal}\nSTATUS: ${d.status}`;
-     if (navigator.share) {
-         try {
-             if (d.photo) {
-                 const res = await fetch(d.photo);
-                 const blob = await res.blob();
-                 const file = new File([blob], `OS_${d.serviceId}.jpg`, { type: 'image/jpeg' });
-                 await navigator.share({ text, files: [file] });
-             } else { await navigator.share({ text }); }
-         } catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); }
-     } else { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); }
-  };
-
   const totalTowers = deployments.reduce((acc, curr) => acc + (curr.hasSignal ? curr.towers : 0), 0);
   let prize = 0;
   if (totalTowers >= 17 && totalTowers <= 22) prize = totalTowers * (role === 'AUXILIAR' ? 30 : 60);
@@ -266,7 +315,7 @@ const App = () => {
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans max-w-md mx-auto shadow-2xl relative flex flex-col">
       {view !== 'FORM' && (
         <header className="bg-slate-800 p-4 sticky top-0 z-10 flex justify-between items-center border-b border-slate-700">
-          <h1 className="font-bold text-lg text-white">NetBonus <span className="text-xs text-sky-400">GPS v2.0</span></h1>
+          <h1 className="font-bold text-lg text-white">NetBonus <span className="text-xs text-sky-400">Relatório v3</span></h1>
           <button onClick={() => setRole(r => r === 'AUXILIAR' ? 'OFICIAL' : 'AUXILIAR')} className="text-xs font-bold px-3 py-1 rounded-full bg-slate-700 border border-slate-600">{role}</button>
         </header>
       )}
@@ -282,26 +331,8 @@ const App = () => {
           </div>
         )}
 
-        {view === 'LIST' && (
-           <div className="space-y-4 pb-20">
-             {!deployments.length && <div className="text-center text-slate-500 mt-10">Sem registros.</div>}
-             {deployments.map(d => (
-               <div key={d.id} className="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700">
-                  <div className="p-3 bg-slate-900/50 flex justify-between"><span className="font-bold">OS: {d.serviceId}</span><span className="text-xs text-slate-400">{d.date}</span></div>
-                  <div className="p-4 space-y-2">
-                     <div className="text-sm flex gap-2"><MapPin size={16} className="text-sky-400 shrink-0"/> <span className="truncate">{d.address}</span></div>
-                     <div className="text-sm">Torres: {d.towers} | Cabo: {d.cableUsed || 0}m</div>
-                     {d.photo && <img src={d.photo} className="w-full h-32 object-cover rounded mt-2 border border-slate-600" />}
-                     <div className="flex gap-2 mt-2 pt-2 border-t border-slate-700">
-                        <button onClick={() => handleShare(d)} className="flex-1 bg-green-600 py-2 rounded text-white text-sm font-bold flex justify-center gap-2"><Share2 size={16}/> Zap</button>
-                        <button onClick={() => handleDelete(d.id)} className="w-10 bg-slate-700 py-2 rounded text-red-400 flex justify-center"><Trash2 size={16}/></button>
-                     </div>
-                  </div>
-               </div>
-             ))}
-           </div>
-        )}
-
+        {view === 'LIST' && <DeploymentList deployments={deployments} onDelete={(id: string) => setDeployments(p => p.filter(d => d.id !== id))} />}
+        
         {view === 'FORM' && <DeploymentForm onSave={(data: any) => { setDeployments(p => [{...data, id: crypto.randomUUID(), createdAt: Date.now()}, ...p]); setView('DASHBOARD'); }} onCancel={() => setView('DASHBOARD')} />}
       </main>
 
