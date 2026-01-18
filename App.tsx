@@ -20,7 +20,7 @@ interface Deployment {
   hasSignal: boolean;
   hasHubBox: boolean;
   
-  // MATERIAIS (NOVOS)
+  // MATERIAIS (NOVOS CAMPOS)
   cableSource?: string; // Qual rolo/bobina
   cableUsed?: number;   // Metros gastos
   connectors?: number;  // Quantidade
@@ -134,11 +134,11 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
           </div>
         </div>
 
-        {/* MATERIAIS UTILIZADOS (NOVA SEÇÃO) */}
+        {/* MATERIAIS DE REDE (NOVA SEÇÃO) */}
         <div className="space-y-3 pt-4 border-t border-slate-700 bg-slate-800/50 p-3 rounded-lg border border-slate-700">
             <div className="flex items-center gap-2 mb-2">
                 <Wrench className="w-4 h-4 text-sky-400" />
-                <label className="text-sky-400 text-xs font-bold uppercase">Materiais Utilizados</label>
+                <label className="text-sky-400 text-xs font-bold uppercase">Materiais de Rede</label>
             </div>
             
             {/* Tipo de Cabo */}
@@ -156,7 +156,7 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
             {/* Inputs de Quantidade */}
             <div className="grid grid-cols-3 gap-3">
                 <div>
-                    <label className="text-[10px] text-slate-400 mb-1 block">Metros Gastos</label>
+                    <label className="text-[10px] text-slate-400 mb-1 block">Metros Usados</label>
                     <input name="cableUsed" type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded p-3 text-white text-center" onChange={handleChange} />
                 </div>
                 <div>
@@ -182,7 +182,7 @@ const DeploymentForm = ({ onSave, onCancel }: any) => {
 
         {/* FOTO - DUPLA OPÇÃO */}
         <div className="pt-4 border-t border-slate-700">
-            <span className="text-sky-400 text-xs font-bold uppercase mb-2 block">Foto do Serviço</span>
+            <span className="text-sky-400 text-xs font-bold uppercase mb-2 block">Evidência Fotográfica</span>
             <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={handlePhotoChange} />
             <input type="file" accept="image/*" className="hidden" ref={galleryInputRef} onChange={handlePhotoChange} />
 
@@ -258,7 +258,7 @@ const DeploymentList = ({ deployments, onDelete }: any) => {
              <div className="text-sm flex gap-2"><MapPin size={16} className="text-sky-400 shrink-0"/> <span className="truncate">{item.address}</span></div>
              
              {/* Exibição Resumida dos Materiais no Card */}
-             <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/30 p-2 rounded">
+             <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/30 p-2 rounded border border-slate-700">
                 <span>Torres: <b className="text-white">{item.towers}</b></span>
                 <span>Cabo: <b className="text-white">{item.cableUsed || 0}m</b></span>
                 <span>Conectores: <b className="text-white">{item.connectors || 0}</b></span>
@@ -300,7 +300,7 @@ const App = () => {
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans max-w-md mx-auto shadow-2xl relative flex flex-col">
       {view !== 'FORM' && (
         <header className="bg-slate-800 p-4 sticky top-0 z-10 flex justify-between items-center border-b border-slate-700">
-          <h1 className="font-bold text-lg text-white">NetBonus <span className="text-xs text-sky-400">v1.8</span></h1>
+          <h1 className="font-bold text-lg text-white">NetBonus <span className="text-xs text-sky-400">v1.9</span></h1>
           <button onClick={() => setRole(r => r === 'AUXILIAR' ? 'OFICIAL' : 'AUXILIAR')} className="text-xs font-bold px-3 py-1 rounded-full bg-slate-700 border border-slate-600">{role}</button>
         </header>
       )}
