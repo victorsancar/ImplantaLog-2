@@ -312,4 +312,14 @@ const App = () => {
       </main>
 
       {view !== 'FORM' && (
-        <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-8
+        <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-800 border-t border-slate-700 px-6 py-3 flex justify-between items-center z-20">
+          <button onClick={() => setView('DASHBOARD')} className={`flex flex-col items-center gap-1 ${view === 'DASHBOARD' ? 'text-sky-400' : 'text-slate-500'}`}><Home className="w-6 h-6"/><span className="text-[10px]">Início</span></button>
+          <button onClick={() => setView('FORM')} className="bg-sky-600 text-white p-3 rounded-full -mt-12 shadow-lg border-4 border-slate-900"><Plus className="w-8 h-8"/></button>
+          <button onClick={() => setView('LIST')} className={`flex flex-col items-center gap-1 ${view === 'LIST' ? 'text-sky-400' : 'text-slate-500'}`}><List className="w-6 h-6"/><span className="text-[10px]">Lista</span></button>
+        </nav>
+      )}
+    </div>
+  );
+};
+
+export default App;
